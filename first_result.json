@@ -1,0 +1,140 @@
+{
+    "single_topic_data": [
+        {
+            "topic": "贵州茅台走势分析",
+            "core_entity": "贵州茅台",
+            "intent": "analysis",
+            "entities": [
+                "贵州茅台"
+            ],
+            "confidence": 0.82,
+            "reasoning": "当前输入明确指向金融标的“贵州茅台”，用户询问其“走势如何”，语义上属于走势分析需求；无领域知识图谱和历史上下文，按无知识图谱机制抽取。"
+        },
+        {
+            "topic": "市盈率查询",
+            "core_entity": "PE",
+            "intent": "query",
+            "entities": [
+                "PE",
+                "市盈率"
+            ],
+            "confidence": 0.55,
+            "reasoning": "当前输入为“PE多少”，可归一化为对市盈率指标的查询；但未提供具体金融标的，存在目标对象缺失，因此置信度中等。"
+        },
+        {
+            "topic": "估值分析",
+            "core_entity": "估值",
+            "intent": "analysis",
+            "entities": [
+                "估值"
+            ],
+            "confidence": 0.35,
+            "reasoning": "当前输入仅包含估值高低判断需求，未提供具体公司、资产或金融标的，核心实体不明确，存在较高歧义。"
+        },
+        {
+            "topic": "购买咨询",
+            "core_entity": "",
+            "intent": "recommendation",
+            "entities": [],
+            "confidence": 0.3,
+            "reasoning": "当前输入仅表达是否购买的意图，缺少明确购买对象且无历史上下文可继承，核心实体无法确定。"
+        },
+        {
+            "topic": "目标价分析",
+            "core_entity": "目标价",
+            "intent": "analysis",
+            "entities": [
+                "目标价"
+            ],
+            "confidence": 0.55,
+            "reasoning": "当前输入仅明确提到目标价，未给出具体金融标的或上下文，需泛化为目标价分析，存在一定歧义。"
+        }
+    ],
+    "increase_topic_data": [
+        {
+            "topic": "股票走势分析",
+            "core_entity": "贵州茅台",
+            "intent": "analysis",
+            "entities": [
+                "贵州茅台"
+            ],
+            "confidence": 0.9,
+            "reasoning": "当前输入明确指向金融标的贵州茅台，并询问其走势，语义上属于股票走势分析意图。"
+        },
+        {
+            "topic": "白酒板块走势",
+            "core_entity": "白酒板块",
+            "intent": "analysis",
+            "entities": [
+                "白酒板块"
+            ],
+            "confidence": 0.82,
+            "reasoning": "当前输入明确指向金融板块中的白酒板块，并关注其走势，适合归类为走势分析；无领域知识图谱，按语义抽取。"
+        },
+        {
+            "topic": "消费板块投资机会",
+            "core_entity": "消费板块",
+            "intent": "analysis",
+            "entities": [
+                "消费板块"
+            ],
+            "confidence": 0.78,
+            "reasoning": "当前输入聚焦于金融领域中的消费板块及其机会判断，未提供知识图谱和历史上下文，因此按语义抽取主题、核心实体和分析意图。"
+        },
+        {
+            "topic": "A股资金流向",
+            "core_entity": "A股",
+            "intent": "query",
+            "entities": [
+                "A股",
+                "资金流向"
+            ],
+            "confidence": 0.82,
+            "reasoning": "当前输入为短语型查询，无可用领域知识图谱；语义指向查询A股市场的资金流向信息，核心实体为A股。"
+        }
+    ],
+    "shift_topic_data": [
+        {
+            "topic": "股票走势分析",
+            "core_entity": "贵州茅台",
+            "intent": "analysis",
+            "entities": [
+                "贵州茅台",
+                "走势"
+            ],
+            "confidence": 0.86,
+            "reasoning": "当前输入明确指向金融标的贵州茅台，并关注其走势，意图为分析；无领域知识图谱和历史上下文，按语义抽取。"
+        },
+        {
+            "topic": "估值指标查询",
+            "core_entity": "PE",
+            "intent": "query",
+            "entities": [
+                "PE"
+            ],
+            "confidence": 0.55,
+            "reasoning": "当前输入仅包含“PE多少”，可识别为对PE指标数值的信息查询，但缺少具体金融标的，存在一定歧义。"
+        },
+        {
+            "topic": "GPU服务器推荐",
+            "core_entity": "GPU服务器",
+            "intent": "recommendation",
+            "entities": [
+                "GPU服务器"
+            ],
+            "confidence": 0.9,
+            "reasoning": "当前输入明确要求推荐GPU服务器，核心实体清晰，无历史上下文和知识图谱约束。"
+        },
+        {
+            "topic": "显卡评价",
+            "core_entity": "4090显卡",
+            "intent": "analysis",
+            "entities": [
+                "4090显卡",
+                "显卡"
+            ],
+            "confidence": 0.9,
+            "reasoning": "当前输入明确询问4090显卡怎么样，核心实体清晰，无历史上下文和知识图谱约束，意图为性能与评价分析。"
+        }
+    ]
+}

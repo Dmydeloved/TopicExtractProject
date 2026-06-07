@@ -1,0 +1,154 @@
+{
+    "single_topic_data": [
+        {
+            "topic": "股票走势分析",
+            "core_entity": "贵州茅台",
+            "intent": "analysis",
+            "entities": [
+                "贵州茅台",
+                "走势"
+            ],
+            "confidence": 0.9,
+            "reasoning": "当前输入明确询问贵州茅台的走势，核心实体为金融标的贵州茅台，意图为走势分析；无可用知识图谱，按语义抽取。"
+        },
+        {
+            "topic": "股票估值",
+            "core_entity": "贵州茅台",
+            "intent": "query",
+            "entities": [
+                "贵州茅台",
+                "市盈率"
+            ],
+            "confidence": 0.58,
+            "reasoning": "当前输入“PE多少”指向市盈率查询，需依赖历史上下文延续核心实体“贵州茅台”。"
+        },
+        {
+            "topic": "贵州茅台估值",
+            "core_entity": "贵州茅台",
+            "intent": "analysis",
+            "entities": [
+                "贵州茅台",
+                "估值",
+                "PE"
+            ],
+            "confidence": 0.58,
+            "reasoning": "当前输入省略核心对象，结合历史上下文中的“贵州茅台”和“PE多少”，判断用户在询问贵州茅台估值是否偏高。"
+        },
+        {
+            "topic": "贵州茅台投资建议",
+            "core_entity": "贵州茅台",
+            "intent": "recommendation",
+            "entities": [
+                "贵州茅台",
+                "PE",
+                "估值"
+            ],
+            "confidence": 0.68,
+            "reasoning": "当前输入省略对象，需结合历史上下文推断；历史持续围绕贵州茅台走势、PE和估值，意图为询问是否还能买入。"
+        },
+        {
+            "topic": "贵州茅台目标价分析",
+            "core_entity": "贵州茅台",
+            "intent": "analysis",
+            "entities": [
+                "贵州茅台",
+                "目标价",
+                "PE",
+                "估值"
+            ],
+            "confidence": 0.62,
+            "reasoning": "当前输入中的“目标价”需结合历史上下文理解，历史上下文持续围绕贵州茅台的走势、PE、估值和买入可行性展开，因此核心实体延续为贵州茅台；用户询问“怎么看”体现对目标价合理性的分析意图。"
+        }
+    ],
+    "increase_topic_data": [
+        {
+            "topic": "贵州茅台走势分析",
+            "core_entity": "贵州茅台",
+            "intent": "analysis",
+            "entities": [
+                "贵州茅台"
+            ],
+            "confidence": 0.9,
+            "reasoning": "当前输入明确指向贵州茅台的走势，历史上下文持续围绕贵州茅台估值、买入与目标价展开，核心实体稳定，意图为走势分析。"
+        },
+        {
+            "topic": "白酒板块走势分析",
+            "core_entity": "白酒板块",
+            "intent": "analysis",
+            "entities": [
+                "白酒板块",
+                "贵州茅台"
+            ],
+            "confidence": 0.82,
+            "reasoning": "当前输入明确指向白酒板块走势，历史上下文围绕贵州茅台估值、买入和走势，语义从个股延展到所属板块，意图为走势分析。"
+        },
+        {
+            "topic": "消费板块投资机会",
+            "core_entity": "消费板块",
+            "intent": "analysis",
+            "entities": [
+                "消费板块",
+                "白酒板块",
+                "贵州茅台"
+            ],
+            "confidence": 0.78,
+            "reasoning": "当前输入明确关注消费板块机会；历史上下文集中在贵州茅台和白酒板块，语义上属于消费相关方向，因此在不重置上下文的情况下将核心实体扩展为消费板块。"
+        },
+        {
+            "topic": "A股资金流向分析",
+            "core_entity": "A股",
+            "intent": "analysis",
+            "entities": [
+                "A股",
+                "资金流向"
+            ],
+            "confidence": 0.72,
+            "reasoning": "当前输入明确指向A股市场资金流向，结合历史上下文仍属于股票市场走势与机会分析范畴，但核心对象由消费/白酒板块扩展为A股整体。"
+        }
+    ],
+    "shift_topic_data": [
+        {
+            "topic": "贵州茅台走势",
+            "core_entity": "贵州茅台",
+            "intent": "analysis",
+            "entities": [
+                "贵州茅台"
+            ],
+            "confidence": 0.9,
+            "reasoning": "当前输入明确指向贵州茅台的走势分析，历史上下文也持续围绕贵州茅台、白酒板块和A股市场。"
+        },
+        {
+            "topic": "贵州茅台估值",
+            "core_entity": "贵州茅台",
+            "intent": "query",
+            "entities": [
+                "贵州茅台",
+                "PE",
+                "市盈率"
+            ],
+            "confidence": 0.58,
+            "reasoning": "当前输入仅提到PE，需依赖历史上下文中反复出现的贵州茅台推断核心实体，意图为查询市盈率。"
+        },
+        {
+            "topic": "GPU服务器推荐",
+            "core_entity": "GPU服务器",
+            "intent": "recommendation",
+            "entities": [
+                "GPU服务器"
+            ],
+            "confidence": 0.82,
+            "reasoning": "当前输入明确表达对GPU服务器的推荐需求；无可用知识图谱，按语义生成主题并抽取核心实体；虽与历史金融上下文不一致，但新输入存在明确领域切换。"
+        },
+        {
+            "topic": "显卡性能咨询",
+            "core_entity": "4090显卡",
+            "intent": "analysis",
+            "entities": [
+                "4090显卡",
+                "GPU服务器"
+            ],
+            "confidence": 0.82,
+            "reasoning": "当前输入明确询问4090显卡表现，结合历史上下文中的GPU服务器需求，主题延续为GPU硬件咨询；无领域知识图谱，按语义抽取核心实体。"
+        }
+    ]
+}

@@ -1,0 +1,174 @@
+{
+    "single_topic_data": [
+        {
+            "topic": "股票走势分析",
+            "core_entity": "贵州茅台",
+            "intent": "analysis",
+            "entities": [
+                "贵州茅台"
+            ],
+            "confidence": 0.9,
+            "reasoning": "当前输入明确询问贵州茅台的走势，核心实体为金融标的贵州茅台，意图为走势分析；无可用领域知识图谱，按语义抽取。",
+            "user_input": "贵州茅台走势如何",
+            "timestamp": "2026-06-04 15:24:34"
+        },
+        {
+            "topic": "股票估值查询",
+            "core_entity": "贵州茅台",
+            "intent": "query",
+            "entities": [
+                "贵州茅台",
+                "PE",
+                "市盈率"
+            ],
+            "confidence": 0.6,
+            "reasoning": "当前输入“PE多少”未显式提及股票名称，需依赖历史上下文延续核心实体“贵州茅台”；PE为股票估值指标市盈率，用户意图为查询该指标。",
+            "user_input": "PE多少",
+            "timestamp": "2026-06-04 15:24:42"
+        },
+        {
+            "topic": "股票估值分析",
+            "core_entity": "贵州茅台",
+            "intent": "analysis",
+            "entities": [
+                "贵州茅台",
+                "估值",
+                "PE",
+                "市盈率"
+            ],
+            "confidence": 0.6,
+            "reasoning": "当前输入“估值高吗”未显式提及股票名称，需依赖历史上下文延续核心实体“贵州茅台”；“估值高吗”表达对估值水平的判断需求，结合上一轮PE/市盈率查询，意图为分析。",
+            "user_input": "估值高吗",
+            "timestamp": "2026-06-04 15:24:51"
+        },
+        {
+            "topic": "股票投资建议",
+            "core_entity": "贵州茅台",
+            "intent": "recommendation",
+            "entities": [
+                "贵州茅台",
+                "买入",
+                "估值"
+            ],
+            "confidence": 0.55,
+            "reasoning": "当前输入“还能买吗”未显式提及股票名称，强依赖历史上下文延续核心实体“贵州茅台”；结合前文走势与估值分析，用户是在询问是否仍适合买入，意图为投资建议。",
+            "user_input": "还能买吗",
+            "timestamp": "2026-06-04 15:24:58"
+        },
+        {
+            "topic": "股票目标价分析",
+            "core_entity": "贵州茅台",
+            "intent": "analysis",
+            "entities": [
+                "贵州茅台",
+                "目标价"
+            ],
+            "confidence": 0.6,
+            "reasoning": "当前输入“目标价怎么看”未显式提及股票名称，需依赖历史上下文延续核心实体“贵州茅台”；“目标价”属于股票投资中的价格预期指标，用户是在询问对目标价的判断，意图为分析。",
+            "user_input": "目标价怎么看",
+            "timestamp": "2026-06-04 15:25:04"
+        }
+    ],
+    "increase_topic_data": [
+        {
+            "topic": "股票走势分析",
+            "core_entity": "贵州茅台",
+            "intent": "analysis",
+            "entities": [
+                "贵州茅台"
+            ],
+            "confidence": 0.9,
+            "reasoning": "当前输入明确提及“贵州茅台”和“走势”，核心实体为金融标的贵州茅台；结合历史上下文持续围绕贵州茅台的走势、估值和目标价展开，主题延续为股票走势分析，用户意图为分析。",
+            "user_input": "贵州茅台走势",
+            "timestamp": "2026-06-04 15:25:08"
+        },
+        {
+            "topic": "股票走势分析",
+            "core_entity": "白酒板块",
+            "intent": "analysis",
+            "entities": [
+                "白酒板块"
+            ],
+            "confidence": 0.9,
+            "reasoning": "当前输入明确提及“白酒板块”和“走势”，核心实体由上一轮个股“贵州茅台”扩展为所属行业板块“白酒板块”；主题仍延续金融市场中的股票走势分析，用户意图为分析。",
+            "user_input": "白酒板块走势",
+            "timestamp": "2026-06-04 15:25:14"
+        },
+        {
+            "topic": "股票投资机会分析",
+            "core_entity": "消费板块",
+            "intent": "analysis",
+            "entities": [
+                "消费板块"
+            ],
+            "confidence": 0.85,
+            "reasoning": "当前输入明确提及“消费板块”和“机会”，核心实体由上一轮“白酒板块”扩展到更高层级的消费行业板块；语义仍延续股票市场板块分析场景，用户意图是分析消费板块的投资机会。",
+            "user_input": "消费板块机会",
+            "timestamp": "2026-06-04 15:25:21"
+        },
+        {
+            "topic": "A股资金流向分析",
+            "core_entity": "A股",
+            "intent": "analysis",
+            "entities": [
+                "A股",
+                "资金流向"
+            ],
+            "confidence": 0.9,
+            "reasoning": "当前输入明确提及“A股”和“资金流向”，属于股票市场资金面分析；虽与上一轮消费板块机会分析相比核心实体从行业板块扩展到整体A股市场，但仍延续股票投资分析场景，用户意图是分析A股资金流向。",
+            "user_input": "A股资金流向",
+            "timestamp": "2026-06-04 15:25:26"
+        }
+    ],
+    "shift_topic_data": [
+        {
+            "topic": "股票走势分析",
+            "core_entity": "贵州茅台",
+            "intent": "analysis",
+            "entities": [
+                "贵州茅台"
+            ],
+            "confidence": 0.9,
+            "reasoning": "当前输入明确提及“贵州茅台”和“走势”，核心实体为金融标的贵州茅台；虽然上一轮核心实体为“A股”，但本轮输入已明确切换回个股走势分析场景，用户意图为分析。",
+            "user_input": "贵州茅台走势",
+            "timestamp": "2026-06-04 15:25:31"
+        },
+        {
+            "topic": "股票估值指标查询",
+            "core_entity": "贵州茅台",
+            "intent": "query",
+            "entities": [
+                "贵州茅台",
+                "PE"
+            ],
+            "confidence": 0.78,
+            "reasoning": "当前输入“PE多少”未显式提及股票名称，但结合历史上下文上一轮核心实体为“贵州茅台”，且持续围绕其走势、估值相关问题展开，因此延续核心实体为贵州茅台；“PE”属于股票估值指标，用户意图是查询该指标数值。",
+            "user_input": "PE多少",
+            "timestamp": "2026-06-04 15:25:37"
+        },
+        {
+            "topic": "GPU服务器推荐",
+            "core_entity": "GPU服务器",
+            "intent": "recommendation",
+            "entities": [
+                "GPU服务器"
+            ],
+            "confidence": 0.92,
+            "reasoning": "当前输入明确提出“推荐GPU服务器”，核心实体为“GPU服务器”，用户意图是获取服务器选型建议；该输入与历史股票估值查询主题明显不一致，属于明确的新主题切换，因此不延续上一轮金融上下文。",
+            "user_input": "推荐GPU服务器",
+            "timestamp": "2026-06-04 15:25:42"
+        },
+        {
+            "topic": "GPU服务器显卡选型分析",
+            "core_entity": "RTX 4090显卡",
+            "intent": "analysis",
+            "entities": [
+                "RTX 4090显卡"
+            ],
+            "confidence": 0.86,
+            "reasoning": "当前输入明确提及“4090显卡”并询问“怎么样”，核心实体为RTX 4090显卡；结合上一轮“推荐GPU服务器”的上下文，本轮属于围绕GPU服务器选型中的显卡方案进行评价分析，用户意图为分析。",
+            "user_input": "4090显卡怎么样",
+            "timestamp": "2026-06-04 15:25:50"
+        }
+    ]
+}
