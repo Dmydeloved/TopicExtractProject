@@ -1,0 +1,269 @@
+{
+  "input_path": "D:\\code\\TopicExtractProject\\data\\processed\\multiwoz_2.2_scene_dialogue_10000.jsonl",
+  "next_dialogue_index": 6,
+  "next_turn_index": 15,
+  "processed_user_turns": 50,
+  "context": {
+    "history_size": 5,
+    "current_topic_state": {
+      "topic": "餐厅信息查询",
+      "core_entity": "The Riverside Brasserie",
+      "intent": "action",
+      "entities": [
+        "The Riverside Brasserie"
+      ],
+      "confidence": 0.72,
+      "reasoning": "当前为致谢结束语，明显承接餐厅预订上下文，沿用餐厅实体，intent为结束性交互",
+      "user_input": "Thanks for everything you have been great!",
+      "turn_index": 14,
+      "timestamp": "2026-06-15T14:10:23.796870+00:00"
+    },
+    "recent_semantic_history": [
+      {
+        "topic": "餐厅信息查询",
+        "core_entity": "The Riverside Brasserie",
+        "intent": "query",
+        "entities": [
+          "The Riverside Brasserie"
+        ],
+        "confidence": 0.88,
+        "reasoning": "当前输入转向餐厅查找，core_entity为餐厅名称，intent为查询餐厅信息",
+        "user_input": "I am also looking for The Riverside Brasserie.",
+        "turn_index": 6,
+        "timestamp": "2026-06-15T14:09:41.086887+00:00"
+      },
+      {
+        "topic": "餐厅信息查询",
+        "core_entity": "The Riverside Brasserie",
+        "intent": "action",
+        "entities": [
+          "The Riverside Brasserie",
+          "reference number"
+        ],
+        "confidence": 0.86,
+        "reasoning": "topic继承餐厅上下文，core_entity由it指代该餐厅，intent为预订并获取参考号",
+        "user_input": "Yes, I would like to book it and get a reference number.",
+        "turn_index": 8,
+        "timestamp": "2026-06-15T14:09:56.698490+00:00"
+      },
+      {
+        "topic": "餐厅信息查询",
+        "core_entity": "The Riverside Brasserie",
+        "intent": "action",
+        "entities": [
+          "The Riverside Brasserie",
+          "Saturday",
+          "13:00"
+        ],
+        "confidence": 0.88,
+        "reasoning": "topic继承餐厅预订上下文，core_entity沿用该餐厅，intent为补充时间尝试预订",
+        "user_input": "Can you try for Saturday at 13:00?",
+        "turn_index": 10,
+        "timestamp": "2026-06-15T14:10:04.011203+00:00"
+      },
+      {
+        "topic": "餐厅信息查询",
+        "core_entity": "The Riverside Brasserie",
+        "intent": "action",
+        "entities": [
+          "The Riverside Brasserie",
+          "6 people"
+        ],
+        "confidence": 0.88,
+        "reasoning": "topic继承餐厅预订上下文，core_entity沿用该餐厅，intent为补充用餐人数以完成预订",
+        "user_input": "6 people will be dining",
+        "turn_index": 12,
+        "timestamp": "2026-06-15T14:10:12.574335+00:00"
+      },
+      {
+        "topic": "餐厅信息查询",
+        "core_entity": "The Riverside Brasserie",
+        "intent": "action",
+        "entities": [
+          "The Riverside Brasserie"
+        ],
+        "confidence": 0.72,
+        "reasoning": "当前为致谢结束语，明显承接餐厅预订上下文，沿用餐厅实体，intent为结束性交互",
+        "user_input": "Thanks for everything you have been great!",
+        "turn_index": 14,
+        "timestamp": "2026-06-15T14:10:23.796870+00:00"
+      }
+    ]
+  },
+  "current_dialogue": {
+    "scene": [
+      "restaurant",
+      "train"
+    ],
+    "dialogue": [
+      {
+        "role": "user",
+        "content": "Please find me a train from cambridge to stansted airport",
+        "topic_extraction": {
+          "topic": "铁路出行规划",
+          "core_entity": "Cambridge to Stansted Airport train route",
+          "intent": "action",
+          "entities": [
+            "Cambridge",
+            "Stansted Airport",
+            "train"
+          ],
+          "confidence": 0.86,
+          "reasoning": "topic由火车出行需求归纳，core_entity为出发到到达路线，intent为查找列车行动"
+        }
+      },
+      {
+        "role": "system",
+        "content": "Sure, I can do that but first I need a little more information. What day would you like to travel as well as departure and arrival times?"
+      },
+      {
+        "role": "user",
+        "content": "Saturday leaving Cambridge anytime after 20:00 please",
+        "topic_extraction": {
+          "topic": "铁路出行规划",
+          "core_entity": "Cambridge to Stansted Airport train route",
+          "intent": "action",
+          "entities": [
+            "Cambridge",
+            "Stansted Airport",
+            "train",
+            "Saturday",
+            "20:00"
+          ],
+          "confidence": 0.9,
+          "reasoning": "topic继承历史铁路出行规划，core_entity沿用剑桥至斯坦斯特德机场路线，intent为补充出发时间以查找列车"
+        }
+      },
+      {
+        "role": "system",
+        "content": "TR3128 will leave at 20:40 and arrive by 21:08. Do you need more information or would you like to book tickets?"
+      },
+      {
+        "role": "user",
+        "content": "Can you book me 6 tickets please?",
+        "topic_extraction": {
+          "topic": "铁路出行规划",
+          "core_entity": "Cambridge to Stansted Airport train route",
+          "intent": "action",
+          "entities": [
+            "Cambridge",
+            "Stansted Airport",
+            "train",
+            "Saturday",
+            "20:00",
+            "6 tickets"
+          ],
+          "confidence": 0.92,
+          "reasoning": "topic继承铁路出行规划，core_entity沿用剑桥至斯坦斯特德机场路线，intent为预订6张车票"
+        }
+      },
+      {
+        "role": "system",
+        "content": "You're all set. Total for tickets is 48.48 GBP payable at the station. Reference number is JD6SA21J ."
+      },
+      {
+        "role": "user",
+        "content": "I am also looking for The Riverside Brasserie.",
+        "topic_extraction": {
+          "topic": "餐厅信息查询",
+          "core_entity": "The Riverside Brasserie",
+          "intent": "query",
+          "entities": [
+            "The Riverside Brasserie"
+          ],
+          "confidence": 0.88,
+          "reasoning": "当前输入转向餐厅查找，core_entity为餐厅名称，intent为查询餐厅信息"
+        }
+      },
+      {
+        "role": "system",
+        "content": "riverside brasserie is a modern european restaurant in the centre. Its address is Doubletree by Hilton Cambridge Granta Place Mill Lane and postcode is cb21rt. Want to book it?"
+      },
+      {
+        "role": "user",
+        "content": "Yes, I would like to book it and get a reference number.",
+        "topic_extraction": {
+          "topic": "餐厅信息查询",
+          "core_entity": "The Riverside Brasserie",
+          "intent": "action",
+          "entities": [
+            "The Riverside Brasserie",
+            "reference number"
+          ],
+          "confidence": 0.86,
+          "reasoning": "topic继承餐厅上下文，core_entity由it指代该餐厅，intent为预订并获取参考号"
+        }
+      },
+      {
+        "role": "system",
+        "content": "Unfortunately, I cannot book it at this time."
+      },
+      {
+        "role": "user",
+        "content": "Can you try for Saturday at 13:00?",
+        "topic_extraction": {
+          "topic": "餐厅信息查询",
+          "core_entity": "The Riverside Brasserie",
+          "intent": "action",
+          "entities": [
+            "The Riverside Brasserie",
+            "Saturday",
+            "13:00"
+          ],
+          "confidence": 0.88,
+          "reasoning": "topic继承餐厅预订上下文，core_entity沿用该餐厅，intent为补充时间尝试预订"
+        }
+      },
+      {
+        "role": "system",
+        "content": "How many people will be dining?"
+      },
+      {
+        "role": "user",
+        "content": "6 people will be dining",
+        "topic_extraction": {
+          "topic": "餐厅信息查询",
+          "core_entity": "The Riverside Brasserie",
+          "intent": "action",
+          "entities": [
+            "The Riverside Brasserie",
+            "6 people"
+          ],
+          "confidence": 0.88,
+          "reasoning": "topic继承餐厅预订上下文，core_entity沿用该餐厅，intent为补充用餐人数以完成预订"
+        }
+      },
+      {
+        "role": "system",
+        "content": "Your booking was successful. Your reference number is 3VX3AOKS ."
+      },
+      {
+        "role": "user",
+        "content": "Thanks for everything you have been great!",
+        "topic_extraction": {
+          "topic": "餐厅信息查询",
+          "core_entity": "The Riverside Brasserie",
+          "intent": "action",
+          "entities": [
+            "The Riverside Brasserie"
+          ],
+          "confidence": 0.72,
+          "reasoning": "当前为致谢结束语，明显承接餐厅预订上下文，沿用餐厅实体，intent为结束性交互"
+        }
+      },
+      {
+        "role": "system",
+        "content": "Thank you is there anything else today?"
+      },
+      {
+        "role": "user",
+        "content": "No that is all I needed. Thank you ever so kindly."
+      },
+      {
+        "role": "system",
+        "content": "Wonderful. I'm glad I could help. Have a great day. Goodbye."
+      }
+    ]
+  },
+  "output_has_partial_dialogue": false
+}

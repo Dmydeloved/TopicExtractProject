@@ -1,140 +1,141 @@
 {
     "single_topic_data": [
         {
-            "topic": "贵州茅台走势分析",
+            "topic": "股票分析",
             "core_entity": "贵州茅台",
-            "intent": "analysis",
+            "intent": "走势分析",
             "entities": [
                 "贵州茅台"
             ],
-            "confidence": 0.82,
-            "reasoning": "当前输入明确指向金融标的“贵州茅台”，用户询问其“走势如何”，语义上属于走势分析需求；无领域知识图谱和历史上下文，按无知识图谱机制抽取。"
+            "confidence": 0.88,
+            "reasoning": "topic由股票走势语义归纳，core_entity来自当前股票名称，intent为询问走势分析"
         },
         {
-            "topic": "市盈率查询",
+            "topic": "股票分析",
             "core_entity": "PE",
             "intent": "query",
             "entities": [
                 "PE",
                 "市盈率"
             ],
-            "confidence": 0.55,
-            "reasoning": "当前输入为“PE多少”，可归一化为对市盈率指标的查询；但未提供具体金融标的，存在目标对象缺失，因此置信度中等。"
+            "confidence": 0.35,
+            "reasoning": "当前仅提到PE，归入股票分析；核心实体取金融指标PE；意图为查询数值。"
         },
         {
-            "topic": "估值分析",
+            "topic": "金融产品分析",
             "core_entity": "估值",
-            "intent": "analysis",
+            "intent": "估值分析",
             "entities": [
                 "估值"
             ],
-            "confidence": 0.35,
-            "reasoning": "当前输入仅包含估值高低判断需求，未提供具体公司、资产或金融标的，核心实体不明确，存在较高歧义。"
+            "confidence": 0.32,
+            "reasoning": "topic由估值语义推断，core_entity来自当前输入，intent为询问估值高低判断"
         },
         {
-            "topic": "购买咨询",
-            "core_entity": "",
+            "topic": "购买决策",
+            "core_entity": "未明确对象",
             "intent": "recommendation",
-            "entities": [],
-            "confidence": 0.3,
-            "reasoning": "当前输入仅表达是否购买的意图，缺少明确购买对象且无历史上下文可继承，核心实体无法确定。"
+            "entities": [
+                "未明确对象"
+            ],
+            "confidence": 0.25,
+            "reasoning": "当前仅有“还能买吗”，无历史上下文；对象缺失，意图为是否购买建议。"
         },
         {
-            "topic": "目标价分析",
+            "topic": "股票分析",
             "core_entity": "目标价",
-            "intent": "analysis",
+            "intent": "估值分析",
             "entities": [
                 "目标价"
             ],
-            "confidence": 0.55,
-            "reasoning": "当前输入仅明确提到目标价，未给出具体金融标的或上下文，需泛化为目标价分析，存在一定歧义。"
+            "confidence": 0.52,
+            "reasoning": "topic由目标价推断为股票分析；core_entity来自当前输入；intent为理解目标价含义与估值参考"
         }
     ],
     "increase_topic_data": [
         {
-            "topic": "股票走势分析",
+            "topic": "股票分析",
             "core_entity": "贵州茅台",
-            "intent": "analysis",
+            "intent": "走势分析",
             "entities": [
                 "贵州茅台"
             ],
-            "confidence": 0.9,
-            "reasoning": "当前输入明确指向金融标的贵州茅台，并询问其走势，语义上属于股票走势分析意图。"
+            "confidence": 0.86,
+            "reasoning": "topic由股票走势语义归纳为股票分析；core_entity来自当前输入；intent为分析其走势。"
         },
         {
-            "topic": "白酒板块走势",
+            "topic": "股票分析",
             "core_entity": "白酒板块",
-            "intent": "analysis",
+            "intent": "走势分析",
             "entities": [
                 "白酒板块"
             ],
             "confidence": 0.82,
-            "reasoning": "当前输入明确指向金融板块中的白酒板块，并关注其走势，适合归类为走势分析；无领域知识图谱，按语义抽取。"
+            "reasoning": "topic由白酒板块走势归纳为股票分析；core_entity来自当前输入；intent为走势分析需求"
         },
         {
-            "topic": "消费板块投资机会",
+            "topic": "股票分析",
             "core_entity": "消费板块",
-            "intent": "analysis",
+            "intent": "投资机会分析",
             "entities": [
                 "消费板块"
             ],
-            "confidence": 0.78,
-            "reasoning": "当前输入聚焦于金融领域中的消费板块及其机会判断，未提供知识图谱和历史上下文，因此按语义抽取主题、核心实体和分析意图。"
+            "confidence": 0.72,
+            "reasoning": "由“板块机会”归入股票分析；核心对象为消费板块；意图为投资机会分析。"
         },
         {
-            "topic": "A股资金流向",
+            "topic": "股票分析",
             "core_entity": "A股",
-            "intent": "query",
+            "intent": "资金流向分析",
             "entities": [
                 "A股",
                 "资金流向"
             ],
-            "confidence": 0.82,
-            "reasoning": "当前输入为短语型查询，无可用领域知识图谱；语义指向查询A股市场的资金流向信息，核心实体为A股。"
+            "confidence": 0.78,
+            "reasoning": "topic由A股市场语义归纳为股票分析，core_entity取A股，intent指向资金流向分析"
         }
     ],
     "shift_topic_data": [
         {
-            "topic": "股票走势分析",
+            "topic": "股票分析",
             "core_entity": "贵州茅台",
-            "intent": "analysis",
+            "intent": "走势分析",
             "entities": [
-                "贵州茅台",
-                "走势"
+                "贵州茅台"
             ],
             "confidence": 0.86,
-            "reasoning": "当前输入明确指向金融标的贵州茅台，并关注其走势，意图为分析；无领域知识图谱和历史上下文，按语义抽取。"
+            "reasoning": "topic由股票走势语义归纳为股票分析；core_entity来自当前输入；intent为走势分析"
         },
         {
-            "topic": "估值指标查询",
-            "core_entity": "PE",
+            "topic": "股票分析",
+            "core_entity": "市盈率（PE）",
             "intent": "query",
             "entities": [
-                "PE"
+                "市盈率（PE）"
             ],
-            "confidence": 0.55,
-            "reasoning": "当前输入仅包含“PE多少”，可识别为对PE指标数值的信息查询，但缺少具体金融标的，存在一定歧义。"
+            "confidence": 0.45,
+            "reasoning": "当前输入仅提到PE，推断为股票分析中的市盈率查询，核心实体为PE，意图为查询。"
         },
         {
-            "topic": "GPU服务器推荐",
+            "topic": "服务器硬件选型",
             "core_entity": "GPU服务器",
             "intent": "recommendation",
             "entities": [
                 "GPU服务器"
             ],
-            "confidence": 0.9,
-            "reasoning": "当前输入明确要求推荐GPU服务器，核心实体清晰，无历史上下文和知识图谱约束。"
+            "confidence": 0.78,
+            "reasoning": "topic由GPU服务器采购选型语义归纳，core_entity来自当前输入，intent为推荐需求"
         },
         {
-            "topic": "显卡评价",
-            "core_entity": "4090显卡",
+            "topic": "显卡选购",
+            "core_entity": "NVIDIA GeForce RTX 4090",
             "intent": "analysis",
             "entities": [
-                "4090显卡",
+                "NVIDIA GeForce RTX 4090",
                 "显卡"
             ],
-            "confidence": 0.9,
-            "reasoning": "当前输入明确询问4090显卡怎么样，核心实体清晰，无历史上下文和知识图谱约束，意图为性能与评价分析。"
+            "confidence": 0.86,
+            "reasoning": "topic由显卡产品咨询归纳，core_entity来自4090显卡标准化，intent为询问产品表现分析"
         }
     ]
 }

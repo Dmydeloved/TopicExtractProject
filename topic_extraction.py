@@ -144,6 +144,8 @@ def original_topic_extract():
     print("\n✅ 结果已保存到 second_result.json")
 
 if __name__ == "__main__":
+    single_topic_extract()
+    original_topic_extract()
     third_result = {
         "single_topic_data": [],
         "increase_topic_data": [],
