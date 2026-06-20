@@ -4,6 +4,9 @@ from prompts_storage import common_extractor_prompt
 from experiment_data import get_single_topic, get_increase_topic, get_shift_topic
 from datetime import datetime
 
+TopicRecord = dict[str, object]
+TopicResult = TopicRecord | list[TopicRecord]
+
 class FixedArray:
     def __init__(self, max_size):
         # 初始化固定容量
@@ -42,7 +45,58 @@ def context_to_json(context):
     # 转成 JSON 字符串（中文不乱码）
     return json.dumps(data, ensure_ascii=False, indent=2)
 
-def run_entity_extract(user_input: str, ctx: str = "", kg: str = "") -> dict:
+
+def strip_markdown_code_fence(content: str) -> str:
+    """兼容模型返回 ```json ... ``` 形式的包裹内容。"""
+    text = content.strip()
+    if not text.startswith("```"):
+        return text
+
+    lines = text.splitlines()
+    if lines and lines[0].startswith("```"):
+        lines = lines[1:]
+    if lines and lines[-1].strip() == "```":
+        lines = lines[:-1]
+    return "\n".join(lines).strip()
+
+
+def parse_topic_response(content: str) -> TopicResult:
+    """将模型输出统一解析为单条或多条语义记录。"""
+    payload = json.loads(strip_markdown_code_fence(content))
+
+    if isinstance(payload, list):
+        if not payload:
+            raise ValueError("Topic response array must not be empty.")
+        if not all(isinstance(item, dict) for item in payload):
+            raise ValueError("Every topic record in the response array must be a JSON object.")
+        return payload[0] if len(payload) == 1 else payload
+
+    if not isinstance(payload, dict):
+        raise ValueError("Topic response must be a JSON object or a JSON array.")
+
+    return payload
+
+def add_result_metadata(topic_result: TopicResult, user_input: str) -> TopicResult:
+    """为单条或多条语义记录补充输入和时间戳。"""
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    if isinstance(topic_result, list):
+        return [
+            {
+                **item,
+                "user_input": user_input,
+                "timestamp": timestamp,
+            }
+            for item in topic_result
+        ]
+
+    return {
+        **topic_result,
+        "user_input": user_input,
+        "timestamp": timestamp,
+    }
+
+
+def run_entity_extract(user_input: str, ctx: str = "", kg: str = "") -> TopicResult:
     """调用LLM完成实体主题提取"""
     # 初始化客户端，替换为自己的key与base_url
     client = OpenAI(
@@ -56,7 +110,7 @@ def run_entity_extract(user_input: str, ctx: str = "", kg: str = "") -> dict:
         temperature=0.0
     )
     content = resp.choices[0].message.content.strip()
-    return json.loads(content)
+    return parse_topic_response(content)
 
 def single_topic_extract():
     first_result = {
@@ -162,27 +216,24 @@ if __name__ == "__main__":
 
     for index, message in single_topic_data.items():
         temp_result = run_entity_extract(user_input=message, ctx=context_to_json(conversation_context))
+        temp_result = add_result_metadata(temp_result, message)
         third_result["single_topic_data"].append(temp_result)
-        temp_result['user_input'] = message
-        temp_result['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conversation_context["recent_semantic_history"].add(temp_result)
         conversation_context['current_topic_state'] = temp_result
         print(f"index = {index}\n{json.dumps(temp_result, ensure_ascii=False, indent=4)}\n")
 
     for index, message in increase_topic_data.items():
         temp_result = run_entity_extract(user_input=message, ctx=context_to_json(conversation_context))
+        temp_result = add_result_metadata(temp_result, message)
         third_result["increase_topic_data"].append(temp_result)
-        temp_result['user_input'] = message
-        temp_result['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conversation_context["recent_semantic_history"].add(temp_result)
         conversation_context['current_topic_state'] = temp_result
         print(f"index = {index}\n{json.dumps(temp_result, ensure_ascii=False, indent=4)}\n")
 
     for index, message in shift_topic_data.items():
         temp_result = run_entity_extract(user_input=message, ctx=context_to_json(conversation_context))
+        temp_result = add_result_metadata(temp_result, message)
         third_result["shift_topic_data"].append(temp_result)
-        temp_result['user_input'] = message
-        temp_result['timestamp'] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         conversation_context["recent_semantic_history"].add(temp_result)
         conversation_context['current_topic_state'] = temp_result
         print(f"index = {index}\n{json.dumps(temp_result, ensure_ascii=False, indent=4)}\n")

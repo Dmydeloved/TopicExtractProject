@@ -32,11 +32,13 @@ RESULT_FIELDS = (
     "reasoning",
 )
 REQUIRED_RESULT_FIELDS = set(RESULT_FIELDS)
+TopicRecord = dict[str, Any]
+TopicResult = TopicRecord | list[TopicRecord]
 
 
 class TopicExtractor(Protocol):
-    def extract(self, user_input: str, context: str) -> dict[str, Any]:
-        """Extract one structured topic result."""
+    def extract(self, user_input: str, context: str) -> TopicResult:
+        """Extract one or more structured topic results."""
 
 
 @dataclass
@@ -44,8 +46,8 @@ class SemanticContext:
     """State used by the original third-mode topic extraction method."""
 
     history_size: int = 5
-    current_topic_state: dict[str, Any] = field(default_factory=dict)
-    recent_semantic_history: deque[dict[str, Any]] = field(init=False)
+    current_topic_state: TopicResult = field(default_factory=dict)
+    recent_semantic_history: deque[TopicResult] = field(init=False)
 
     def __post_init__(self) -> None:
         if self.history_size <= 0:
@@ -62,8 +64,8 @@ class SemanticContext:
             separators=(",", ":"),
         )
 
-    def update(self, semantic_result: dict[str, Any]) -> None:
-        state = dict(semantic_result)
+    def update(self, semantic_result: TopicResult) -> None:
+        state = copy.deepcopy(semantic_result)
         self.recent_semantic_history.append(state)
         self.current_topic_state = state
 
@@ -77,8 +79,10 @@ class SemanticContext:
     @classmethod
     def from_dict(cls, value: dict[str, Any]) -> "SemanticContext":
         context = cls(history_size=int(value.get("history_size", 5)))
-        context.current_topic_state = dict(value.get("current_topic_state") or {})
-        context.recent_semantic_history.extend(value.get("recent_semantic_history") or [])
+        context.current_topic_state = copy.deepcopy(value.get("current_topic_state") or {})
+        context.recent_semantic_history.extend(
+            copy.deepcopy(value.get("recent_semantic_history") or [])
+        )
         return context
 
 
@@ -100,7 +104,7 @@ class RunEntityTopicExtractor:
         self.max_retries = max_retries
         self.retry_delay = retry_delay
 
-    def extract(self, user_input: str, context: str) -> dict[str, Any]:
+    def extract(self, user_input: str, context: str) -> TopicResult:
         last_error: Exception | None = None
         for attempt in range(1, self.max_retries + 1):
             try:
@@ -119,10 +123,12 @@ class RunEntityTopicExtractor:
                         error,
                     )
                     time.sleep(delay)
-        raise RuntimeError(f"Topic extraction failed after {self.max_retries} attempts.") from last_error
+        raise RuntimeError(
+            f"Topic extraction failed after {self.max_retries} attempts: {last_error}"
+        ) from last_error
 
 
-def validate_topic_result(value: Any) -> dict[str, Any]:
+def validate_topic_record(value: Any) -> TopicRecord:
     if not isinstance(value, dict):
         raise ValueError("Topic result must be a JSON object.")
     missing = REQUIRED_RESULT_FIELDS - value.keys()
@@ -151,6 +157,14 @@ def validate_topic_result(value: Any) -> dict[str, Any]:
     return result
 
 
+def validate_topic_result(value: Any) -> TopicResult:
+    if isinstance(value, list):
+        if not value:
+            raise ValueError("Topic result list must not be empty.")
+        return [validate_topic_record(item) for item in value]
+    return validate_topic_record(value)
+
+
 def iter_dialogues(path: Path) -> Iterator[tuple[int, dict[str, Any]]]:
     with path.open(encoding="utf-8") as source:
         for dialogue_index, line in enumerate(source):
@@ -174,14 +188,29 @@ def input_stats(path: Path) -> tuple[int, int]:
 
 
 def semantic_state(
-    result: dict[str, Any], user_input: str, turn_index: int
-) -> dict[str, Any]:
+    result: TopicResult, user_input: str, turn_index: int
+) -> TopicResult:
+    timestamp = datetime.now(timezone.utc).isoformat()
+    if isinstance(result, list):
+        return [
+            {
+                **item,
+                "user_input": user_input,
+                "turn_index": turn_index,
+                "timestamp": timestamp,
+            }
+            for item in result
+        ]
     return {
         **result,
         "user_input": user_input,
         "turn_index": turn_index,
-        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "timestamp": timestamp,
     }
+
+
+def primary_topic_record(result: TopicResult) -> TopicRecord:
+    return result[0] if isinstance(result, list) else result
 
 
 def append_json_line(path: Path, value: dict[str, Any]) -> None:
@@ -189,6 +218,41 @@ def append_json_line(path: Path, value: dict[str, Any]) -> None:
     with path.open("a", encoding="utf-8", newline="\n") as destination:
         destination.write(json.dumps(value, ensure_ascii=False) + "\n")
         destination.flush()
+
+
+def remove_failure_entry(path: Path, dialogue_index: int, turn_index: int) -> None:
+    if not path.exists():
+        return
+
+    remaining_lines = []
+    removed = False
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            remaining_lines.append(line)
+            continue
+
+        if (
+            record.get("dialogue_index") == dialogue_index
+            and record.get("turn_index") == turn_index
+        ):
+            removed = True
+            continue
+        remaining_lines.append(line)
+
+    if not removed:
+        return
+
+    if not remaining_lines:
+        path.unlink(missing_ok=True)
+        return
+
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    temporary.write_text("\n".join(remaining_lines) + "\n", encoding="utf-8")
+    temporary.replace(path)
 
 
 def remove_last_json_line(path: Path) -> None:
@@ -334,10 +398,13 @@ def process_dialogues(
                 )
                 turn["topic_extraction"] = result
                 context.update(semantic_state(result, user_input, turn_index))
+                remove_failure_entry(failures_path, dialogue_index, turn_index)
                 processed_this_run += 1
                 checkpoint.processed_user_turns += 1
                 if processed_this_run == 1 or processed_this_run % progress_every == 0:
                     elapsed = time.monotonic() - started_at
+                    primary_result = primary_topic_record(result)
+                    topic_count = len(result) if isinstance(result, list) else 1
                     overall_percentage = (
                         checkpoint.processed_user_turns / total_user_turns * 100
                         if total_user_turns
@@ -345,7 +412,7 @@ def process_dialogues(
                     )
                     logger.info(
                         "进度 run=%s/%s total=%s/%s(%.2f%%) dialogue=%s turn=%s "
-                        "topic=%s core_entity=%s elapsed=%.1fs",
+                        "topics=%s primary_topic=%s primary_core_entity=%s elapsed=%.1fs",
                         processed_this_run,
                         run_limit,
                         checkpoint.processed_user_turns,
@@ -353,8 +420,9 @@ def process_dialogues(
                         overall_percentage,
                         dialogue_index,
                         turn_index,
-                        result["topic"],
-                        result["core_entity"],
+                        topic_count,
+                        primary_result["topic"],
+                        primary_result["core_entity"],
                         elapsed,
                     )
             except Exception as error:

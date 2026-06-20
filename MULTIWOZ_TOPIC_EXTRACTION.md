@@ -3,13 +3,11 @@
 该模块按照 `topic_extraction.py` 中 third 模式的语义状态方法，对每个用户轮次进行主题提取：
 
 - 每段对话创建独立上下文。
-- `current_topic_state` 保存上一轮结构化主题结果。
-- `recent_semantic_history` 保存最近 5 条结构化主题结果。
+- `current_topic_state` 保存上一轮结构化主题结果；若单轮包含多个主题，则保存该轮的结果数组。
+- `recent_semantic_history` 保存最近 5 条结构化主题结果；多主题轮次按整轮结果写入历史。
 - 系统回复不进行提取，也不加入语义历史。
 - 不将 MultiWOZ `scene` 作为领域知识传入模型。
 - 直接复用 `topic_extraction.run_entity_extract` 中配置的模型、API Key 和 URL。
-
-原有 `topic_extraction.py` 和 `prompts_storage.py` 未被修改。
 
 ## 首次测试
 
@@ -46,7 +44,7 @@ multiwoz_2.2_scene_dialogue_10000.jsonl
         │             1. 读取 content
         │             2. 将 SemanticContext 转为历史上下文 JSON
         │             3. 调用 run_entity_extract(user_input, ctx, kg="")
-        │             4. 校验 topic/core_entity/intent/entities/confidence/reasoning
+        │             4. 校验单条或多条 topic/core_entity/intent/entities/confidence/reasoning
         │             5. 将结果写入当前 user 轮次的 topic_extraction
         │             6. 用结果更新 SemanticContext
         │             7. 保存 checkpoint
@@ -62,6 +60,7 @@ multiwoz_2.2_scene_dialogue_10000.jsonl
 - 模型仅看到当前 user 输入与结构化语义历史。
 - `scene` 和 system 内容保留在输出中，但不会传入模型。
 - 输出仍是一行一段对话，仅为 user 轮次增加 `topic_extraction`。
+- 若模型识别到多个独立主题，则 `topic_extraction` 为数组；单主题时保持对象格式。
 
 ## 控制台日志
 
@@ -88,7 +87,7 @@ python multiwoz_topic_extraction.py --verbose
 ## 输出结构
 
 输出保留原有 MultiWOZ 精简 JSON 格式，仅在每个 `user` 轮次中增加
-`topic_extraction`。`system` 轮次保持不变：
+`topic_extraction`。`system` 轮次保持不变；多主题时该字段会是数组：
 
 ```json
 {

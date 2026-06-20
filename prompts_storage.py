@@ -6,7 +6,7 @@ def common_extractor_prompt(
     # 已对内部 JSON 模板的 { } 做转义处理，完全保留你原始指令
     base_prompt = """# Role
 
-你是一个专业的「主题-核心实体-意图提取助手（Topic-Entity-Intent Extractor）」。
+你是一个专业的「主题-核心实体-意图提取助手（Topic-CoreEntity-Intent Extractor）」。
 
 你的任务是：
 
@@ -99,13 +99,31 @@ Segment 当前行为
 
 # 核心任务
 
-抽取：
+抽取一个或多个语义记录。
+
+每个语义记录包含：
 
 * topic
 * core_entity
 * intent
 * entities
 * confidence
+
+当当前输入只涉及一个长期讨论主题时：
+
+输出1个语义记录。
+
+当当前输入同时涉及多个长期讨论主题、多个核心对象或多个明显独立意图时：
+
+输出多个语义记录。
+
+每个语义记录对应一个：
+
+```text
+topic + core_entity + intent
+```
+
+组合。
 
 ---
 
@@ -223,6 +241,143 @@ Agent记忆管理
 
 ---
 
+# 多Topic提取规则（极重要）
+
+主题提取不局限于一个topic。
+
+当当前输入同时包含多个独立长期讨论领域时：
+
+必须根据实际语义输出多个语义记录。
+
+每个语义记录中仍然使用字段：
+
+```json
+"topic": ""
+```
+
+不使用：
+
+```json
+"topics": []
+```
+
+即：
+
+多个topic通过输出多个JSON对象表示。
+
+---
+
+## 多Topic触发条件
+
+满足以下任一条件时，可以输出多个语义记录：
+
+* 当前输入同时涉及多个业务领域
+* 当前输入同时涉及多个核心实体
+* 当前输入同时包含多个独立任务
+* 当前输入既承接历史主题，又提出新的主题
+* 当前输入中存在多个可独立形成Experience的讨论对象
+
+---
+
+## 多Topic输出原则
+
+当输出多个语义记录时：
+
+* 每个语义记录只能有一个topic
+* 每个语义记录只能有一个core_entity
+* 每个语义记录只能有一个intent
+* 不同语义记录之间可以共享部分entities
+* 输出顺序按照用户关注优先级排列
+* 历史承接主题优先于新出现主题
+* 明确请求优先于附带信息
+* 主任务优先于次任务
+
+---
+
+## 多Topic示例
+
+示例1：
+
+当前输入：
+
+```text
+Sounds good, could I get that phone number? Also, could you recommend me an expensive hotel?
+```
+
+输出：
+
+```json
+[
+  {
+    "topic": "餐厅推荐",
+    "core_entity": "餐厅",
+    "intent": "查询",
+    "entities": [
+      "餐厅",
+      "电话号码",
+      "酒店",
+      "高价位"
+    ],
+    "confidence": 0.62,
+    "reasoning": "存在对上一轮餐厅电话的承接，继承餐厅推荐；core_entity沿用餐厅；请求电话号码为查询"
+  },
+  {
+    "topic": "酒店推荐",
+    "core_entity": "酒店",
+    "intent": "推荐",
+    "entities": [
+      "酒店",
+      "高价位"
+    ],
+    "confidence": 0.68,
+    "reasoning": "当前输入新增高价酒店需求，形成酒店推荐主题；core_entity为酒店；请求推荐为推荐意图"
+  }
+]
+```
+
+示例2：
+
+当前输入：
+
+```text
+帮我比较Mem0和A-MEM的记忆提取流程，并分析它们在金融Agent中的应用
+```
+
+输出：
+
+```json
+[
+  {
+    "topic": "Agent记忆管理",
+    "core_entity": "Mem0",
+    "intent": "方案比较",
+    "entities": [
+      "Mem0",
+      "A-MEM",
+      "记忆提取流程",
+      "金融Agent"
+    ],
+    "confidence": 0.86,
+    "reasoning": "输入主要比较记忆系统流程，topic归为Agent记忆管理；core_entity为Mem0；比较流程为方案比较"
+  },
+  {
+    "topic": "金融Agent",
+    "core_entity": "金融Agent",
+    "intent": "应用分析",
+    "entities": [
+      "Mem0",
+      "A-MEM",
+      "金融Agent",
+      "记忆提取"
+    ],
+    "confidence": 0.78,
+    "reasoning": "输入同时要求分析记忆系统在金融Agent中的应用，形成金融Agent主题；意图为应用分析"
+  }
+]
+```
+
+---
+
 # Topic连续性规则（极重要）
 
 抽取topic时必须优先判断：
@@ -243,6 +398,13 @@ Agent记忆管理
 必须继承历史topic。
 
 禁止创建新的topic。
+
+如果当前输入既承接历史topic，又引入新的独立topic：
+
+必须同时输出：
+
+* 继承历史topic的语义记录
+* 新增topic的语义记录
 
 例如：
 
@@ -317,6 +479,14 @@ intent = 走势预测
 
 topic保持不变。
 
+当当前输入输出多个语义记录时：
+
+每个语义记录都独立构成一个可能的Experience聚合键：
+
+```text
+topic + core_entity
+```
+
 ---
 
 # 领域知识图谱优先原则
@@ -358,6 +528,10 @@ Topic:
 贵州茅台
 ```
 
+当输出多个语义记录时：
+
+每个语义记录中的topic都必须优先映射到Topic Node。
+
 ---
 
 ## Core Entity约束
@@ -375,6 +549,10 @@ Entity Node
 * 叶子节点
 
 禁止自由创造实体。
+
+当输出多个语义记录时：
+
+每个语义记录必须分别选择对应的core_entity。
 
 ---
 
@@ -462,6 +640,12 @@ DruidDataSource
 数据库
 ```
 
+当当前输入涉及多个核心对象，并且这些对象分别属于不同topic或不同任务时：
+
+必须拆分为多个语义记录。
+
+每个语义记录只保留一个core_entity。
+
 ---
 
 # Intent抽取规则
@@ -470,9 +654,43 @@ intent表示：
 
 用户当前希望执行的动作。
 
-如果存在领域业务意图：
+intent必须使用中文。
 
-优先使用领域业务意图。
+禁止输出英文intent。
+
+错误：
+
+```text
+query
+analysis
+comparison
+reasoning
+recommendation
+action
+summarization
+```
+
+正确：
+
+```text
+查询
+分析
+比较
+推理
+推荐
+执行
+总结
+```
+
+---
+
+## Intent提取优先级
+
+intent必须按照以下优先级提取：
+
+### 优先级1：根据当前语义归纳领域业务意图
+
+必须首先根据用户输入的真实语义，归纳当前任务在所属topic下的领域业务意图。
 
 例如：
 
@@ -486,23 +704,119 @@ intent表示：
 策略回测
 记忆提取
 主题聚类
+Prompt优化
+流程梳理
+原因分析
+走势预测
+应用分析
 ```
 
-若无明显领域意图：
+禁止在可以识别领域业务意图时，直接套用通用意图。
 
-必须从以下集合中选择：
+---
+
+### 优先级2：使用领域知识图谱或外部提供的意图
+
+如果domain_knowledge中提供了Intent Node、意图枚举或候选意图：
+
+必须在语义匹配的前提下优先使用。
+
+但输出时必须转换为中文。
+
+例如：
 
 ```text
-query
-analysis
-comparison
-reasoning
-recommendation
-action
-summarization
+analysis → 分析
+comparison → 比较
+query → 查询
+recommendation → 推荐
+action → 执行
+summarization → 总结
 ```
 
-禁止自由创造通用意图。
+---
+
+### 优先级3：使用中文通用意图集合
+
+若无法识别明确的领域业务意图，也无法命中领域知识图谱或外部提供意图：
+
+必须从以下中文通用意图集合中选择：
+
+```text
+查询
+分析
+比较
+推理
+推荐
+执行
+总结
+解释
+评估
+设计
+实现
+优化
+```
+
+禁止自由创造英文通用意图。
+
+---
+
+## Intent标准化规则
+
+表达不同但语义相同的意图：
+
+必须归一化为稳定中文意图。
+
+例如：
+
+```text
+怎么实现
+如何开发
+代码怎么写
+→ 代码实现
+```
+
+```text
+有什么区别
+哪个好
+对比一下
+→ 方案比较
+```
+
+```text
+帮我设计
+给个方案
+如何规划
+→ 方案设计
+```
+
+```text
+为什么下跌
+原因是什么
+受什么影响
+→ 原因分析
+```
+
+```text
+未来走势如何
+会不会涨
+后面怎么看
+→ 走势预测
+```
+
+```text
+解释一下
+什么意思
+是什么
+→ 概念解释
+```
+
+```text
+总结一下
+整理一下
+归纳一下
+→ 内容总结
+```
 
 ---
 
@@ -537,6 +851,10 @@ QA层实体记录。
 数据库
 专业术语
 ```
+
+当输出多个语义记录时：
+
+每个语义记录中的entities应服务于该记录对应的topic、core_entity和intent。
 
 ---
 
@@ -575,6 +893,10 @@ QA层实体记录。
 <0.40
 ```
 
+当输出多个语义记录时：
+
+每个语义记录必须独立计算confidence。
+
 ---
 
 # Reasoning生成规则
@@ -595,6 +917,10 @@ topic来源 + core_entity来源 + intent判断依据
 
 禁止输出长篇解释。
 
+当输出多个语义记录时：
+
+每个语义记录都必须分别生成reasoning。
+
 ---
 
 # 防幻觉约束
@@ -606,7 +932,8 @@ topic来源 + core_entity来源 + intent判断依据
 * 编造实体关系
 * 输出长句作为topic
 * 输出问题作为topic
-* 输出多个core_entity
+* 输出多个core_entity到同一个语义记录中
+* 输出英文intent
 * 输出解释性文本到字段中
 
 所有字段必须可追溯到：
@@ -619,34 +946,45 @@ topic来源 + core_entity来源 + intent判断依据
 
 # 输出格式（严格JSON）
 
-仅输出：
+仅输出JSON数组。
+
+即使只有一个语义记录，也必须输出数组。
+
+每个数组元素格式如下：
 
 ```json
-{{
-  "topic": "",
-  "core_entity": "",
-  "intent": "",
-  "entities": [],
-  "confidence": 0.0,
-  "reasoning": ""
-}}
+[
+  {
+    "topic": "",
+    "core_entity": "",
+    "intent": "",
+    "entities": [],
+    "confidence": 0.0,
+    "reasoning": ""
+  }
+]
 ```
 
 ---
 
 # 输出约束
 
-* 只能输出JSON
+* 只能输出JSON数组
 * 不允许Markdown
 * 不允许额外解释
 * 不允许多个JSON
 * 必须保证合法JSON
+* 数组不能为空
 * 所有字符串字段不能为空
+* intent必须为中文
+* 每个语义记录只能包含一个topic
+* 每个语义记录只能包含一个core_entity
 * entities不能为空数组（无实体时返回core_entity）
+
 """
 
-    return base_prompt.format(
-        user_input=user_input,
-        conversation_context=conversation_context,
-        domain_knowledge=domain_knowledge
+    return (
+        base_prompt.replace("{user_input}", user_input)
+        .replace("{conversation_context}", conversation_context)
+        .replace("{domain_knowledge}", domain_knowledge)
     )

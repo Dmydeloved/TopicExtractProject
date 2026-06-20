@@ -27,6 +27,28 @@ class FakeExtractor:
         }
 
 
+class MultiTopicExtractor:
+    def extract(self, user_input, context):
+        return [
+            {
+                "topic": "餐厅服务",
+                "core_entity": "restaurant",
+                "intent": "query",
+                "entities": ["restaurant", "phone"],
+                "confidence": 0.9,
+                "reasoning": "用户先查询餐厅电话",
+            },
+            {
+                "topic": "酒店推荐",
+                "core_entity": "hotel",
+                "intent": "recommendation",
+                "entities": ["hotel", "expensive"],
+                "confidence": 0.8,
+                "reasoning": "用户又追加了酒店推荐需求",
+            },
+        ]
+
+
 class MultiWOZTopicExtractionTests(unittest.TestCase):
     def test_input_stats_counts_dialogues_and_user_turns(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -66,6 +88,30 @@ class MultiWOZTopicExtractionTests(unittest.TestCase):
                     "reasoning": "test",
                 }
             )
+
+    def test_result_validation_accepts_multiple_topic_records(self):
+        result = validate_topic_result(
+            [
+                {
+                    "topic": "a",
+                    "core_entity": "b",
+                    "intent": "query",
+                    "entities": ["b"],
+                    "confidence": 0.9,
+                    "reasoning": "test",
+                },
+                {
+                    "topic": "c",
+                    "core_entity": "d",
+                    "intent": "analysis",
+                    "entities": ["d"],
+                    "confidence": 0.8,
+                    "reasoning": "test",
+                },
+            ]
+        )
+        self.assertEqual(2, len(result))
+        self.assertEqual("a", result[0]["topic"])
 
     def test_pipeline_preserves_original_shape_and_adds_results_to_user_turns(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -112,6 +158,77 @@ class MultiWOZTopicExtractionTests(unittest.TestCase):
             self.assertEqual(dialogues[0]["scene"], output[0]["scene"])
             self.assertNotIn("topic_extraction", output[0]["dialogue"][1])
             self.assertEqual("餐厅服务", output[0]["dialogue"][0]["topic_extraction"]["topic"])
+
+    def test_pipeline_preserves_multiple_topic_records_on_one_turn(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.jsonl"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "scene": ["restaurant", "hotel"],
+                        "dialogue": [{"role": "user", "content": "phone and hotel"}],
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            processed = process_dialogues(
+                extractor=MultiTopicExtractor(),
+                input_path=input_path,
+                output_path=root / "output.jsonl",
+                checkpoint_path=root / "checkpoint.json",
+                failures_path=root / "failures.jsonl",
+                max_user_turns=1,
+                resume=False,
+            )
+
+            self.assertEqual(1, processed)
+            output = json.loads((root / "output.jsonl").read_text(encoding="utf-8"))
+            self.assertEqual(2, len(output["dialogue"][0]["topic_extraction"]))
+            self.assertEqual("餐厅服务", output["dialogue"][0]["topic_extraction"][0]["topic"])
+            self.assertEqual("酒店推荐", output["dialogue"][0]["topic_extraction"][1]["topic"])
+
+    def test_successful_retry_removes_stale_failure_entry(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            input_path = root / "input.jsonl"
+            input_path.write_text(
+                json.dumps(
+                    {
+                        "scene": ["restaurant"],
+                        "dialogue": [{"role": "user", "content": "first"}],
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            failures_path = root / "failures.jsonl"
+            failures_path.write_text(
+                json.dumps(
+                    {
+                        "dialogue_index": 0,
+                        "turn_index": 0,
+                        "user_input": "first",
+                        "error": "old error",
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            process_dialogues(
+                extractor=FakeExtractor(),
+                input_path=input_path,
+                output_path=root / "output.jsonl",
+                checkpoint_path=root / "checkpoint.json",
+                failures_path=failures_path,
+                max_user_turns=1,
+                resume=False,
+            )
+
+            self.assertFalse(failures_path.exists())
 
     def test_exact_limit_writes_partial_dialogue_and_resume_replaces_it(self):
         with tempfile.TemporaryDirectory() as directory:
