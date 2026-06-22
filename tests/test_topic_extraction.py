@@ -1,6 +1,6 @@
 import unittest
 
-from topic_extraction import parse_topic_response
+from memory_system.topic_extractor import parse_topic_response
 
 
 class TopicExtractionResponseParsingTests(unittest.TestCase):

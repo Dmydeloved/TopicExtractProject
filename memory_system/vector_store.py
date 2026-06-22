@@ -1,10 +1,125 @@
 from __future__ import annotations
 
+import json
+import math
 from pathlib import Path
+import sqlite3
+import struct
 from typing import Any
 import uuid
 
-import chromadb
+try:
+    import chromadb
+except ImportError:  # pragma: no cover - exercised in environments without chromadb
+    chromadb = None
+
+
+class _InMemoryCollection:
+    def __init__(self) -> None:
+        self._items: dict[str, dict[str, Any]] = {}
+
+    def upsert(
+        self,
+        ids: list[str],
+        documents: list[str],
+        embeddings: list[list[float]],
+        metadatas: list[dict[str, Any]],
+    ) -> None:
+        for item_id, document, embedding, metadata in zip(
+            ids, documents, embeddings, metadatas
+        ):
+            self._items[item_id] = {
+                "id": item_id,
+                "document": document,
+                "embedding": embedding,
+                "metadata": metadata,
+            }
+
+    def query(
+        self,
+        query_embeddings: list[list[float]],
+        n_results: int,
+        where: dict[str, Any] | None = None,
+        include: list[str] | None = None,
+    ) -> dict[str, list[list[Any]]]:
+        del include
+        query_embedding = query_embeddings[0]
+        candidates = [
+            item
+            for item in self._items.values()
+            if not where
+            or all(item["metadata"].get(key) == value for key, value in where.items())
+        ]
+        ranked = sorted(
+            candidates,
+            key=lambda item: self._cosine_distance(query_embedding, item["embedding"]),
+        )[:n_results]
+        return {
+            "ids": [[item["id"] for item in ranked]],
+            "documents": [[item["document"] for item in ranked]],
+            "metadatas": [[item["metadata"] for item in ranked]],
+            "distances": [[self._cosine_distance(query_embedding, item["embedding"]) for item in ranked]],
+        }
+
+    def count(self) -> int:
+        return len(self._items)
+
+    def _cosine_distance(
+        self, left: list[float], right: list[float]
+    ) -> float:
+        dot = sum(left_value * right_value for left_value, right_value in zip(left, right))
+        left_norm = math.sqrt(sum(value * value for value in left))
+        right_norm = math.sqrt(sum(value * value for value in right))
+        if not left_norm or not right_norm:
+            return 1.0
+        similarity = dot / (left_norm * right_norm)
+        similarity = max(-1.0, min(1.0, similarity))
+        return 1.0 - similarity
+
+
+class _PersistentQueueBackedCollection(_InMemoryCollection):
+    """Read-only fallback backed by Chroma's sqlite queue snapshots."""
+
+    def __init__(self, sqlite_path: Path) -> None:
+        super().__init__()
+        self.sqlite_path = sqlite_path
+        if not self.sqlite_path.exists():
+            raise FileNotFoundError(f"Chroma sqlite file not found: {self.sqlite_path}")
+        self._load_items()
+
+    def _load_items(self) -> None:
+        connection = sqlite3.connect(self.sqlite_path)
+        connection.row_factory = sqlite3.Row
+        try:
+            rows = connection.execute(
+                """
+                SELECT seq_id, id, vector, metadata
+                FROM embeddings_queue
+                WHERE vector IS NOT NULL AND metadata IS NOT NULL
+                ORDER BY seq_id DESC
+                """
+            ).fetchall()
+        finally:
+            connection.close()
+
+        seen_ids: set[str] = set()
+        for row in rows:
+            item_id = str(row["id"])
+            if item_id in seen_ids:
+                continue
+            metadata = json.loads(row["metadata"])
+            self._items[item_id] = {
+                "id": item_id,
+                "document": metadata.get("chroma:document", ""),
+                "embedding": self._decode_float32_vector(row["vector"]),
+                "metadata": metadata,
+            }
+            seen_ids.add(item_id)
+
+    def _decode_float32_vector(self, blob: bytes) -> list[float]:
+        if not blob:
+            return []
+        return [value[0] for value in struct.iter_unpack("<f", blob)]
 
 
 class ChromaVectorStore:
@@ -19,6 +134,14 @@ class ChromaVectorStore:
         self.persist_path = Path(persist_path)
         if not ephemeral:
             self.persist_path.mkdir(parents=True, exist_ok=True)
+        if chromadb is None:
+            self.client = None
+            self.collection = (
+                _InMemoryCollection()
+                if ephemeral
+                else _PersistentQueueBackedCollection(self.persist_path / "chroma.sqlite3")
+            )
+            return
         self.client = (
             chromadb.EphemeralClient()
             if ephemeral

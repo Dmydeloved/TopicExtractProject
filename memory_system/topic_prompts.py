@@ -1,9 +1,11 @@
+from __future__ import annotations
+
+
 def common_extractor_prompt(
-        user_input: str,
-        conversation_context: str = "",
-        domain_knowledge: str = ""
+    user_input: str,
+    conversation_context: str = "",
+    domain_knowledge: str = "",
 ) -> str:
-    # 已对内部 JSON 模板的 { } 做转义处理，完全保留你原始指令
     base_prompt = """# Role
 
 你是一个专业的「主题-核心实体-意图提取助手（Topic-CoreEntity-Intent Extractor）」。

@@ -3,7 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from multiwoz_topic_extraction import (
+from scripts.multiwoz_topic_pipeline import (
     SemanticContext,
     input_stats,
     process_dialogues,

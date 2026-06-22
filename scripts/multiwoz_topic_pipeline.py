@@ -1,4 +1,5 @@
-"""Extract topics for MultiWOZ user turns using the original third-mode method."""
+#!/usr/bin/env python3
+"""Extract topics for MultiWOZ user turns and write them back into the dialogue JSONL."""
 
 from __future__ import annotations
 
@@ -14,26 +15,24 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterator, Protocol
 
-from topic_extraction import run_entity_extract
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from memory_system.topic_extractor import (
+    BailianTopicExtractor,
+    TopicRecord,
+    TopicResult,
+    validate_topic_result,
+)
 
 
-logger = logging.getLogger("multiwoz_topic_extraction")
+logger = logging.getLogger("memory_system.multiwoz_topic_pipeline")
 
 DEFAULT_INPUT = Path("data/processed/multiwoz_2.2_scene_dialogue_10000.jsonl")
 DEFAULT_OUTPUT = Path("data/topic_extracted/multiwoz_2.2_with_topics.jsonl")
 DEFAULT_CHECKPOINT = Path("data/topic_extracted/multiwoz_2.2_checkpoint.json")
 DEFAULT_FAILURES = Path("data/topic_extracted/multiwoz_2.2_failures.jsonl")
-RESULT_FIELDS = (
-    "topic",
-    "core_entity",
-    "intent",
-    "entities",
-    "confidence",
-    "reasoning",
-)
-REQUIRED_RESULT_FIELDS = set(RESULT_FIELDS)
-TopicRecord = dict[str, Any]
-TopicResult = TopicRecord | list[TopicRecord]
 
 
 class TopicExtractor(Protocol):
@@ -43,8 +42,6 @@ class TopicExtractor(Protocol):
 
 @dataclass
 class SemanticContext:
-    """State used by the original third-mode topic extraction method."""
-
     history_size: int = 5
     current_topic_state: TopicResult = field(default_factory=dict)
     recent_semantic_history: deque[TopicResult] = field(init=False)
@@ -95,74 +92,6 @@ class Checkpoint:
     context: dict[str, Any] = field(default_factory=dict)
     current_dialogue: dict[str, Any] | None = None
     output_has_partial_dialogue: bool = False
-
-
-class RunEntityTopicExtractor:
-    """Retrying adapter around topic_extraction.run_entity_extract."""
-
-    def __init__(self, max_retries: int = 3, retry_delay: float = 2.0) -> None:
-        self.max_retries = max_retries
-        self.retry_delay = retry_delay
-
-    def extract(self, user_input: str, context: str) -> TopicResult:
-        last_error: Exception | None = None
-        for attempt in range(1, self.max_retries + 1):
-            try:
-                return validate_topic_result(
-                    run_entity_extract(user_input=user_input, ctx=context, kg="")
-                )
-            except Exception as error:
-                last_error = error
-                if attempt < self.max_retries:
-                    delay = self.retry_delay * attempt
-                    logger.warning(
-                        "模型调用失败，准备重试 attempt=%s/%s delay=%.1fs error=%s",
-                        attempt,
-                        self.max_retries,
-                        delay,
-                        error,
-                    )
-                    time.sleep(delay)
-        raise RuntimeError(
-            f"Topic extraction failed after {self.max_retries} attempts: {last_error}"
-        ) from last_error
-
-
-def validate_topic_record(value: Any) -> TopicRecord:
-    if not isinstance(value, dict):
-        raise ValueError("Topic result must be a JSON object.")
-    missing = REQUIRED_RESULT_FIELDS - value.keys()
-    if missing:
-        raise ValueError(f"Topic result is missing fields: {sorted(missing)}")
-
-    result = {key: value[key] for key in RESULT_FIELDS}
-    for key in ("topic", "core_entity", "intent", "reasoning"):
-        if not isinstance(result[key], str) or not result[key].strip():
-            raise ValueError(f"{key} must be a non-empty string.")
-        result[key] = result[key].strip()
-
-    entities = result["entities"]
-    if not isinstance(entities, list) or not entities:
-        raise ValueError("entities must be a non-empty list.")
-    result["entities"] = [str(entity).strip() for entity in entities if str(entity).strip()]
-    if not result["entities"]:
-        raise ValueError("entities must contain at least one non-empty value.")
-
-    confidence = result["confidence"]
-    if not isinstance(confidence, (int, float)) or isinstance(confidence, bool):
-        raise ValueError("confidence must be numeric.")
-    if not 0.0 <= float(confidence) <= 1.0:
-        raise ValueError("confidence must be between 0.0 and 1.0.")
-    result["confidence"] = float(confidence)
-    return result
-
-
-def validate_topic_result(value: Any) -> TopicResult:
-    if isinstance(value, list):
-        if not value:
-            raise ValueError("Topic result list must not be empty.")
-        return [validate_topic_record(item) for item in value]
-    return validate_topic_record(value)
 
 
 def iter_dialogues(path: Path) -> Iterator[tuple[int, dict[str, Any]]]:
@@ -313,8 +242,6 @@ def process_dialogues(
     continue_on_error: bool = False,
     progress_every: int = 10,
 ) -> int:
-    """Add topic_extraction to user turns while preserving original JSON shape."""
-
     if max_user_turns < 0:
         raise ValueError("max_user_turns must be zero or greater.")
     if progress_every <= 0:
@@ -366,14 +293,6 @@ def process_dialogues(
             else SemanticContext(history_size=history_size)
         )
         start_turn_index = checkpoint.next_turn_index if is_resumed_dialogue else 0
-        logger.debug(
-            "处理对话 dialogue=%s/%s resumed=%s start_turn=%s scene=%s",
-            dialogue_index + 1,
-            total_dialogues,
-            is_resumed_dialogue,
-            start_turn_index,
-            dialogue.get("scene") or [],
-        )
 
         for turn_index, turn in enumerate(dialogue.get("dialogue") or []):
             if turn_index < start_turn_index or turn.get("role") != "user":
@@ -463,7 +382,7 @@ def process_dialogues(
         checkpoint.current_dialogue = None
         checkpoint.output_has_partial_dialogue = False
         save_checkpoint(checkpoint_path, checkpoint)
-        logger.debug("对话完成并写入输出 dialogue=%s", dialogue_index)
+
     elapsed = time.monotonic() - started_at
     logger.info(
         "全部输入处理完成 processed_run=%s processed_total=%s elapsed=%.1fs output=%s",
@@ -505,7 +424,7 @@ def parse_args() -> argparse.Namespace:
         default=10,
         help="Print progress after this many successfully processed user turns.",
     )
-    parser.add_argument("--verbose", action="store_true", help="Print dialogue-level debug logs.")
+    parser.add_argument("--verbose", action="store_true")
     return parser.parse_args()
 
 
@@ -514,7 +433,7 @@ def main() -> int:
     configure_logging(args.verbose)
     try:
         processed = process_dialogues(
-            extractor=RunEntityTopicExtractor(max_retries=args.max_retries),
+            extractor=BailianTopicExtractor(max_retries=args.max_retries),
             input_path=args.input,
             output_path=args.output,
             checkpoint_path=args.checkpoint,
