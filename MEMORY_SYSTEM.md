@@ -1,72 +1,89 @@
 # 结构化主题记忆库
 
-该模块实现 QA、Segment、Experience 三层结构化记忆，以及运行时状态 `runtime_state`。
+该模块实现 QA、Segment、Experience 三层结构化记忆、运行时状态，以及 SQLite + Chroma 混合检索。
 
-## 写入规则
+## 向量架构
 
-每次输入一条主题结构化数据：
+    主题结构化数据
+      -> SQLite：保存 QA / Segment / Experience / runtime_state
+      -> 阿里百炼 text-embedding-v4：编码 topic + core_entity + entities/intent
+      -> Chroma：持久化 QA / Segment / Experience 向量
 
-```json
-{
-  "topic": "",
-  "core_entity": "",
-  "intent": "",
-  "entities": [],
-  "confidence": 0.0,
-  "reasoning": ""
-}
-```
+API Key 不写入代码，通过环境变量配置：
 
-写入流程：
+    $env:DASHSCOPE_API_KEY = "your-api-key"
 
-```text
-读取 runtime_state
-  -> 判断 current Experience 的 topic + core_entity 是否一致
-      -> 一致：继续判断 current Segment
-      -> 不一致：总结当前 Segment / Experience，再查找或创建目标 Experience
-  -> 判断 Segment 的 intent 是否一致
-      -> 一致：追加 QA
-      -> 不一致：总结旧 Segment，新建 Segment
-  -> 创建 QA
-  -> 更新 Segment / Experience / runtime_state
-  -> Segment 满 5 条 QA 触发总结
-  -> Experience 新增 5 个 Segment 触发总结
-```
+安装依赖：
 
-QA 层已去除 `conversation_id`、`turn_index`、`scene` 字段。
+    pip install -r requirements-memory.txt
 
 ## 运行导入
 
-从已经完成主题提取的 MultiWOZ JSONL 构建记忆库：
+    python scripts/build_memory_from_multiwoz_topics.py --limit 20
 
-```powershell
-python scripts/build_memory_from_multiwoz_topics.py --limit 20
-```
+默认存储位置：
 
-默认数据库：
+    data/memory/topic_memory.sqlite3
+    data/memory/chroma/
 
-```text
-data/memory/topic_memory.sqlite3
-```
+## 代码写入
 
-## 代码入口
+    from memory_system import (
+        BailianEmbedder,
+        ChromaVectorStore,
+        MemoryManager,
+        MemoryStorage,
+    )
 
-```python
-from memory_system import MemoryManager, MemoryStorage
+    storage = MemoryStorage("data/memory/topic_memory.sqlite3")
+    embedder = BailianEmbedder()
+    vector_store = ChromaVectorStore("data/memory/chroma")
+    manager = MemoryManager(storage, vector_store, embedder)
 
-storage = MemoryStorage("data/memory/topic_memory.sqlite3")
-manager = MemoryManager(storage)
+    manager.add_qa(
+        topic_result={
+            "topic": "餐厅推荐",
+            "core_entity": "餐厅",
+            "intent": "查询",
+            "entities": ["餐厅", "电话"],
+            "confidence": 0.9,
+            "reasoning": "承接餐厅推荐主题，请求电话，意图为查询",
+        },
+        user_input="Could I get the phone number?",
+        assistant_output="The phone number is ...",
+    )
 
-manager.add_qa(
-    topic_result={
-        "topic": "餐厅推荐",
-        "core_entity": "餐厅",
-        "intent": "查询",
-        "entities": ["餐厅", "电话"],
-        "confidence": 0.9,
-        "reasoning": "承接餐厅推荐主题，请求电话，意图为查询",
-    },
-    user_input="Could I get the phone number?",
-    assistant_output="The phone number is ...",
-)
-```
+## 混合检索
+
+关键词候选来自 SQLite，语义候选来自 Chroma：
+
+    score = 0.45 * keyword_score + 0.55 * semantic_score
+
+先按混合分取得 top_k，再按 QA 时间戳升序返回。
+
+    from memory_system import HybridRetriever
+
+    retriever = HybridRetriever(storage, vector_store, embedder)
+    result = retriever.recall(
+        topic="餐厅推荐",
+        core_entity="餐厅",
+        intent="查询",
+        top_k=5,
+    )
+
+    for item in result["results"]:
+        print(
+            item["qa"]["timestamp"],
+            item["qa"]["user_input"],
+            item["score"],
+            item["keyword_score"],
+            item["semantic_score"],
+        )
+
+## 聚合规则
+
+    topic + core_entity 相同 -> 同一个 Experience
+    intent 相同             -> 追加当前 Segment
+    intent 不同             -> 总结旧 Segment，新建 Segment
+    Segment 满 5 条 QA       -> 更新 Segment 总结
+    Experience 新增 5 段     -> 更新 Experience 总结

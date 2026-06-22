@@ -12,11 +12,12 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from memory_system import MemoryManager, MemoryStorage
+from memory_system import BailianEmbedder, ChromaVectorStore, MemoryManager, MemoryStorage
 
 
 DEFAULT_INPUT = Path("data/topic_extracted/multiwoz_2.2_with_topics.jsonl")
 DEFAULT_DB = Path("data/memory/topic_memory.sqlite3")
+DEFAULT_CHROMA = Path("data/memory/chroma")
 
 
 logger = logging.getLogger("build_memory_from_multiwoz_topics")
@@ -75,6 +76,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT)
     parser.add_argument("--db", type=Path, default=DEFAULT_DB)
+    parser.add_argument("--chroma-path", type=Path, default=DEFAULT_CHROMA)
     parser.add_argument("--limit", type=int, default=0, help="Maximum topic QAs to import. 0 means all.")
     parser.add_argument("--state-key", default="default")
     parser.add_argument("--verbose", action="store_true")
@@ -85,7 +87,11 @@ def main() -> int:
     args = parse_args()
     configure_logging(args.verbose)
     storage = MemoryStorage(args.db)
-    manager = MemoryManager(storage)
+    manager = MemoryManager(
+        storage,
+        vector_store=ChromaVectorStore(args.chroma_path),
+        embedder=BailianEmbedder(),
+    )
     imported = 0
     try:
         for item in iter_topic_qas(args.input):

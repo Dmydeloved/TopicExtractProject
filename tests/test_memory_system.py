@@ -2,7 +2,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from memory_system import MemoryManager, MemoryStorage
+from memory_system import ChromaVectorStore, HybridRetriever, MemoryManager, MemoryStorage
+from memory_system.embedder import HashingEmbedder
 
 
 def topic(topic_name="餐厅推荐", entity="餐厅", intent="查询"):
@@ -20,7 +21,8 @@ class MemorySystemTests(unittest.TestCase):
     def make_manager(self):
         directory = tempfile.TemporaryDirectory()
         storage = MemoryStorage(Path(directory.name) / "memory.sqlite3")
-        manager = MemoryManager(storage)
+        vector_store = ChromaVectorStore(ephemeral=True)
+        manager = MemoryManager(storage, vector_store, HashingEmbedder())
         return directory, storage, manager
 
     def test_same_experience_and_intent_appends_same_segment(self):
@@ -31,8 +33,42 @@ class MemorySystemTests(unittest.TestCase):
             self.assertEqual(first["experience_id"], second["experience_id"])
             self.assertEqual(first["segment_id"], second["segment_id"])
             self.assertEqual(2, storage.count_rows("qa_memory"))
+            self.assertEqual(4, manager.vector_store.count())
             self.assertEqual(1, storage.count_rows("segment_memory"))
             self.assertEqual(1, storage.count_rows("experience_memory"))
+        finally:
+            storage.close()
+            directory.cleanup()
+
+    def test_hybrid_retriever_returns_top_k_in_timeline_order(self):
+        directory, storage, manager = self.make_manager()
+        try:
+            manager.add_qa(
+                topic(topic_name="餐厅推荐", entity="餐厅", intent="查询"),
+                "first restaurant question",
+                timestamp="2026-01-01T10:00:00+08:00",
+            )
+            manager.add_qa(
+                topic(topic_name="酒店推荐", entity="酒店", intent="查询"),
+                "hotel question",
+                timestamp="2026-01-01T10:01:00+08:00",
+            )
+            manager.add_qa(
+                topic(topic_name="餐厅推荐", entity="餐厅", intent="查询"),
+                "second restaurant question",
+                timestamp="2026-01-01T10:02:00+08:00",
+            )
+
+            result = HybridRetriever(
+                storage, manager.vector_store, manager.embedder
+            ).recall("餐厅推荐", "餐厅", top_k=2)
+            qas = [item["qa"] for item in result["results"]]
+            self.assertEqual(2, len(qas))
+            self.assertEqual(
+                ["2026-01-01T10:00:00+08:00", "2026-01-01T10:02:00+08:00"],
+                [qa["timestamp"] for qa in qas],
+            )
+            self.assertTrue(all(item["score"] > 0 for item in result["results"]))
         finally:
             storage.close()
             directory.cleanup()

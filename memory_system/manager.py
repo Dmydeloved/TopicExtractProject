@@ -5,8 +5,10 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+from .embedder import TextEmbedder, topic_entity_text
 from .storage import MemoryStorage
 from .summarizer import TemplateSummarizer
+from .vector_store import ChromaVectorStore
 
 
 logger = logging.getLogger(__name__)
@@ -19,12 +21,16 @@ class MemoryManager:
     def __init__(
         self,
         storage: MemoryStorage,
+        vector_store: ChromaVectorStore,
+        embedder: TextEmbedder,
         summarizer: TemplateSummarizer | None = None,
         segment_summary_qa_threshold: int = 5,
         experience_summary_segment_threshold: int = 5,
     ) -> None:
         self.storage = storage
         self.summarizer = summarizer or TemplateSummarizer()
+        self.vector_store = vector_store
+        self.embedder = embedder
         self.segment_summary_qa_threshold = segment_summary_qa_threshold
         self.experience_summary_segment_threshold = experience_summary_segment_threshold
 
@@ -108,6 +114,7 @@ class MemoryManager:
                 "reasoning": reasoning,
             }
             self.storage.insert_qa(qa)
+            self._upsert_topic_entity_embedding("qa", qa["qa_id"], qa, timestamp)
             logger.info(
                 "QA 已创建 qa_id=%s segment_id=%s experience_id=%s",
                 qa["qa_id"],
@@ -156,6 +163,9 @@ class MemoryManager:
             "last_summarized_segment_count": 0,
         }
         self.storage.insert_experience(experience)
+        self._upsert_topic_entity_embedding(
+            "experience", experience["experience_id"], experience, now
+        )
         logger.info("新建 Experience experience_id=%s topic=%s entity=%s", experience["experience_id"], topic, core_entity)
         return experience
 
@@ -182,6 +192,7 @@ class MemoryManager:
             "last_summarized_qa_count": 0,
         }
         self.storage.insert_segment(segment)
+        self._upsert_topic_entity_embedding("segment", segment["segment_id"], segment, now)
         logger.info(
             "新建 Segment segment_id=%s experience_id=%s intent=%s",
             segment["segment_id"],
@@ -230,6 +241,7 @@ class MemoryManager:
         segment["version"] += 1
         segment["updated_at"] = now
         self.storage.update_segment(segment)
+        self._upsert_topic_entity_embedding("segment", segment["segment_id"], segment, now)
         logger.info(
             "Segment 总结已更新 segment_id=%s reason=%s qa_count=%s version=%s",
             segment["segment_id"],
@@ -249,6 +261,9 @@ class MemoryManager:
         experience["version"] += 1
         experience["updated_at"] = now
         self.storage.update_experience(experience)
+        self._upsert_topic_entity_embedding(
+            "experience", experience["experience_id"], experience, now
+        )
         logger.info(
             "Experience 总结已更新 experience_id=%s reason=%s segment_count=%s version=%s",
             experience["experience_id"],
@@ -258,11 +273,35 @@ class MemoryManager:
         )
 
     def _get_qa(self, qa_id: str) -> dict[str, Any] | None:
-        row = self.storage.connection.execute(
-            "SELECT * FROM qa_memory WHERE qa_id = ?",
-            (qa_id,),
-        ).fetchone()
-        return self.storage._row_to_dict(row)
+        return self.storage.get_qa(qa_id)
+
+    def _upsert_topic_entity_embedding(
+        self,
+        memory_type: str,
+        memory_id: str,
+        memory: dict[str, Any],
+        now: str,
+    ) -> None:
+        """Store the topic/core_entity vector whenever memory is created or updated."""
+
+        text = topic_entity_text(
+            memory.get("topic", ""),
+            memory.get("core_entity", ""),
+            memory.get("entities") or memory.get("intent"),
+        )
+        self.vector_store.upsert(
+            memory_type=memory_type,
+            memory_id=memory_id,
+            text=text,
+            embedding=self.embedder.embed(text),
+            updated_at=now,
+        )
+        logger.debug(
+            "向量已写入 type=%s id=%s text=%s",
+            memory_type,
+            memory_id,
+            text,
+        )
 
     def _same_experience(
         self, experience: dict[str, Any] | None, topic: str, core_entity: str

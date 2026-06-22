@@ -85,6 +85,7 @@ JSON_FIELDS = {
     "segment_ids_json",
     "summary_json",
     "state_json",
+    "vector_json",
 }
 
 
@@ -174,6 +175,13 @@ class MemoryStorage:
                 qa["reasoning"],
             ),
         )
+
+    def get_qa(self, qa_id: str) -> dict[str, Any] | None:
+        row = self.connection.execute(
+            "SELECT * FROM qa_memory WHERE qa_id = ?",
+            (qa_id,),
+        ).fetchone()
+        return self._row_to_dict(row)
 
     def get_segment(self, segment_id: str | None) -> dict[str, Any] | None:
         if not segment_id:
@@ -314,7 +322,15 @@ class MemoryStorage:
             ),
         )
 
+    def list_qas(self) -> list[dict[str, Any]]:
+        rows = self.connection.execute("SELECT * FROM qa_memory").fetchall()
+        return [self._row_to_dict(row) for row in rows]
+
     def count_rows(self, table: str) -> int:
-        if table not in {"qa_memory", "segment_memory", "experience_memory", "runtime_state"}:
+        if table not in {
+            "qa_memory",
+            "segment_memory",
+            "experience_memory",
+            "runtime_state",        }:
             raise ValueError(f"Unsupported table: {table}")
         return int(self.connection.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0])
