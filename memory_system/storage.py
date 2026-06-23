@@ -83,9 +83,19 @@ JSON_FIELDS = {
     "qa_ids_json",
     "intents_link_json",
     "segment_ids_json",
-    "summary_json",
     "state_json",
+    "summary_json",
     "vector_json",
+}
+
+JSON_DEFAULTS: dict[str, Any] = {
+    "tools_json": [],
+    "entities_json": [],
+    "qa_ids_json": [],
+    "intents_link_json": [],
+    "segment_ids_json": [],
+    "state_json": {},
+    "vector_json": [],
 }
 
 
@@ -99,11 +109,28 @@ class MemoryStorage:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
         self.connection.executescript(SCHEMA)
+        self._experience_summary_column = self._detect_experience_summary_column()
         self.connection.commit()
         logger.info("结构化记忆库已初始化 db=%s", self.db_path.resolve())
 
     def close(self) -> None:
         self.connection.close()
+
+    def _detect_experience_summary_column(self) -> str:
+        columns = {
+            str(row['name'])
+            for row in self.connection.execute('PRAGMA table_info(experience_memory)')
+        }
+        if 'summary_json' in columns:
+            return 'summary_json'
+        if 'summary' in columns:
+            return 'summary'
+        raise RuntimeError('experience_memory requires summary_json (or legacy summary)')
+
+    def _encode_experience_summary(self, value: Any) -> str:
+        if self._experience_summary_column == 'summary_json':
+            return json.dumps(str(value or ''), ensure_ascii=False)
+        return str(value or '')
 
     def commit(self) -> None:
         self.connection.commit()
@@ -117,8 +144,32 @@ class MemoryStorage:
         data: dict[str, Any] = {}
         for key in row.keys():
             value = row[key]
+            if key == 'summary_json':
+                if not value:
+                    data['summary'] = ''
+                else:
+                    try:
+                        parsed = json.loads(value)
+                    except (json.JSONDecodeError, TypeError):
+                        parsed = value
+                    if isinstance(parsed, str):
+                        data['summary'] = parsed
+                    elif isinstance(parsed, dict):
+                        data['summary'] = (
+                            parsed.get('summary')
+                            or parsed.get('long')
+                            or parsed.get('short')
+                            or ''
+                        )
+                    else:
+                        data['summary'] = ''
+                continue
             if key in JSON_FIELDS:
-                data[key[:-5]] = json.loads(value) if value else None
+                default = JSON_DEFAULTS[key]
+                try:
+                    data[key[:-5]] = json.loads(value) if value else default.copy()
+                except (json.JSONDecodeError, TypeError):
+                    data[key[:-5]] = default.copy()
             else:
                 data[key] = value
         return data
@@ -273,12 +324,50 @@ class MemoryStorage:
         ).fetchone()
         return self._row_to_dict(row)
 
+    def find_experiences(
+        self, topic: str, core_entity: str, limit: int
+    ) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            """
+            SELECT * FROM experience_memory
+            WHERE topic = ? AND core_entity = ?
+            ORDER BY updated_at DESC, created_at DESC
+            LIMIT ?
+            """,
+            (topic, core_entity, limit),
+        ).fetchall()
+        return [self._row_to_dict(row) for row in rows]
+
+    def list_experiences_by_topic(
+        self, topic: str, limit: int
+    ) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            """
+            SELECT * FROM experience_memory
+            WHERE topic = ?
+            ORDER BY updated_at DESC, created_at DESC
+            LIMIT ?
+            """,
+            (topic, limit),
+        ).fetchall()
+        return [self._row_to_dict(row) for row in rows]
+
+    def get_experiences(self, experience_ids: list[str]) -> list[dict[str, Any]]:
+        if not experience_ids:
+            return []
+        placeholders = ", ".join("?" for _ in experience_ids)
+        rows = self.connection.execute(
+            f"SELECT * FROM experience_memory WHERE experience_id IN ({placeholders})",
+            experience_ids,
+        ).fetchall()
+        return [self._row_to_dict(row) for row in rows]
+
     def insert_experience(self, experience: dict[str, Any]) -> None:
         self.connection.execute(
-            """
+            f"""
             INSERT INTO experience_memory (
                 experience_id, topic, core_entity, intents_link_json,
-                segment_ids_json, summary_json, state_json, created_at,
+                segment_ids_json, {self._experience_summary_column}, state_json, created_at,
                 updated_at, version, last_summarized_segment_count
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
@@ -288,7 +377,7 @@ class MemoryStorage:
                 experience["core_entity"],
                 json.dumps(experience["intents_link"], ensure_ascii=False),
                 json.dumps(experience["segment_ids"], ensure_ascii=False),
-                json.dumps(experience["summary"], ensure_ascii=False),
+                self._encode_experience_summary(experience["summary"]),
                 json.dumps(experience["state"], ensure_ascii=False),
                 experience["created_at"],
                 experience["updated_at"],
@@ -299,11 +388,11 @@ class MemoryStorage:
 
     def update_experience(self, experience: dict[str, Any]) -> None:
         self.connection.execute(
-            """
+            f"""
             UPDATE experience_memory SET
                 intents_link_json = ?,
                 segment_ids_json = ?,
-                summary_json = ?,
+                {self._experience_summary_column} = ?,
                 state_json = ?,
                 updated_at = ?,
                 version = ?,
@@ -313,7 +402,7 @@ class MemoryStorage:
             (
                 json.dumps(experience["intents_link"], ensure_ascii=False),
                 json.dumps(experience["segment_ids"], ensure_ascii=False),
-                json.dumps(experience["summary"], ensure_ascii=False),
+                self._encode_experience_summary(experience["summary"]),
                 json.dumps(experience["state"], ensure_ascii=False),
                 experience["updated_at"],
                 experience["version"],
@@ -324,6 +413,51 @@ class MemoryStorage:
 
     def list_qas(self) -> list[dict[str, Any]]:
         rows = self.connection.execute("SELECT * FROM qa_memory").fetchall()
+        return [self._row_to_dict(row) for row in rows]
+
+    def list_segments_by_experience_ids(
+        self, experience_ids: list[str]
+    ) -> list[dict[str, Any]]:
+        if not experience_ids:
+            return []
+        placeholders = ", ".join("?" for _ in experience_ids)
+        rows = self.connection.execute(
+            f"""
+            SELECT * FROM segment_memory
+            WHERE experience_id IN ({placeholders}) AND status != 'deleted'
+            ORDER BY updated_at DESC, created_at DESC
+            """,
+            experience_ids,
+        ).fetchall()
+        return [self._row_to_dict(row) for row in rows]
+
+    def list_qas_by_segment_ids(
+        self, segment_ids: list[str]
+    ) -> list[dict[str, Any]]:
+        if not segment_ids:
+            return []
+        placeholders = ", ".join("?" for _ in segment_ids)
+        rows = self.connection.execute(
+            f"""
+            SELECT * FROM qa_memory
+            WHERE segment_id IN ({placeholders}) AND status = 'active'
+            """,
+            segment_ids,
+        ).fetchall()
+        return [self._row_to_dict(row) for row in rows]
+
+    def list_active_qas_by_topic_entity(
+        self, topic: str, core_entity: str, limit: int
+    ) -> list[dict[str, Any]]:
+        rows = self.connection.execute(
+            """
+            SELECT * FROM qa_memory
+            WHERE topic = ? AND core_entity = ? AND status = 'active'
+            ORDER BY timestamp DESC
+            LIMIT ?
+            """,
+            (topic, core_entity, limit),
+        ).fetchall()
         return [self._row_to_dict(row) for row in rows]
 
     def count_rows(self, table: str) -> int:

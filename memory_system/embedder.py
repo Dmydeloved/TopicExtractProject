@@ -4,7 +4,7 @@ import hashlib
 import math
 import os
 import re
-from typing import Protocol
+from typing import Any, Protocol
 
 
 TOKEN_PATTERN = re.compile(r"[\u4e00-\u9fff]|[a-zA-Z0-9_]+")
@@ -67,3 +67,75 @@ def topic_entity_text(topic: str, core_entity: str, extra: object = None) -> str
     elif extra:
         parts.append(str(extra))
     return " ".join(part for part in parts if part)
+
+
+def _text_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def build_experience_embedding_text(experience: dict[str, Any]) -> str:
+    """Build a bounded Experience vector document without aggregating QA entities."""
+
+    state = experience.get("state") if isinstance(experience.get("state"), dict) else {}
+    recent_segments = experience.get("recent_segments") or []
+    recent_text = "；".join(
+        " / ".join(
+            part
+            for part in (
+                str(segment.get("intent") or "").strip(),
+                str(segment.get("summary") or "").strip(),
+            )
+            if part
+        )
+        for segment in recent_segments[-3:]
+        if isinstance(segment, dict)
+    )
+    state_text = "，".join(
+        f"{key}={state[key]}"
+        for key in ("status", "current_segment_id")
+        if state.get(key)
+    )
+    return "\n".join(
+        [
+            f"主题：{experience.get('topic', '')}",
+            f"核心实体：{experience.get('core_entity', '')}",
+            f"相关意图：{'、'.join(_text_list(experience.get('intents_link')))}",
+            f"长期摘要：{experience.get('summary', '')}",
+            f"当前状态：{state_text}",
+            f"最近阶段：{recent_text}",
+        ]
+    )
+
+
+def build_segment_embedding_text(segment: dict[str, Any]) -> str:
+    """Build a Segment vector document from intent, summary and recent questions."""
+
+    recent_inputs = _text_list(segment.get("recent_qa_inputs"))[-3:]
+    return "\n".join(
+        [
+            f"主题：{segment.get('topic', '')}",
+            f"核心实体：{segment.get('core_entity', '')}",
+            f"阶段意图：{segment.get('intent', '')}",
+            f"阶段摘要：{segment.get('summary', '')}",
+            f"片段状态：{segment.get('status', '')}",
+            f"最近问题：{'；'.join(recent_inputs)}",
+        ]
+    )
+
+
+def build_qa_embedding_text(qa: dict[str, Any]) -> str:
+    """Build a QA vector document containing the original evidence text."""
+
+    answer_excerpt = str(qa.get("assistant_output") or "")[:500]
+    return "\n".join(
+        [
+            f"主题：{qa.get('topic', '')}",
+            f"核心实体：{qa.get('core_entity', '')}",
+            f"用户意图：{qa.get('intent', '')}",
+            f"相关实体：{'、'.join(_text_list(qa.get('entities')))}",
+            f"用户问题：{qa.get('user_input', '')}",
+            f"助手回答摘要：{answer_excerpt}",
+        ]
+    )

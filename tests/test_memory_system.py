@@ -69,6 +69,12 @@ class MemorySystemTests(unittest.TestCase):
                 [qa["timestamp"] for qa in qas],
             )
             self.assertTrue(all(item["score"] > 0 for item in result["results"]))
+            self.assertEqual(["餐厅推荐"], [item["topic"] for item in result["experiences"]])
+            self.assertTrue(all(qa["topic"] == "餐厅推荐" for qa in result["qas"]))
+            self.assertIn("【长期记忆 Experience】", result["context_text"])
+            self.assertIn("【相关阶段 Segment】", result["context_text"])
+            self.assertIn("【原始问答 QA】", result["context_text"])
+            self.assertEqual(1, result["debug"]["experience_candidates"])
         finally:
             storage.close()
             directory.cleanup()
@@ -82,6 +88,30 @@ class MemorySystemTests(unittest.TestCase):
             self.assertNotEqual(first["segment_id"], second["segment_id"])
             old_segment = storage.get_segment(first["segment_id"])
             self.assertTrue(old_segment["summary"])
+        finally:
+            storage.close()
+            directory.cleanup()
+
+    def test_hierarchical_recall_limits_qas_to_selected_segment(self):
+        directory, storage, manager = self.make_manager()
+        try:
+            manager.add_qa(topic(intent="查询"), "查询餐厅电话")
+            manager.add_qa(topic(intent="预订"), "预订餐厅座位")
+
+            result = HybridRetriever(
+                storage, manager.vector_store, manager.embedder
+            ).recall(
+                "餐厅推荐",
+                "餐厅",
+                intent="查询",
+                entities=["餐厅", "电话"],
+                top_segment=1,
+            )
+
+            self.assertEqual(["查询"], [item["intent"] for item in result["segments"]])
+            self.assertEqual(["查询"], [item["intent"] for item in result["qas"]])
+            self.assertEqual(2, result["debug"]["segment_candidates"])
+            self.assertEqual(1, result["debug"]["qa_candidates"])
         finally:
             storage.close()
             directory.cleanup()
@@ -120,7 +150,8 @@ class MemorySystemTests(unittest.TestCase):
                 result = manager.add_qa(topic(intent=f"意图{index}"), f"user {index}")
             experience = storage.get_experience(result["experience_id"])
             self.assertEqual(5, experience["last_summarized_segment_count"])
-            self.assertTrue(experience["summary"]["short"])
+            self.assertIsInstance(experience["summary"], str)
+            self.assertTrue(experience["summary"])
         finally:
             storage.close()
             directory.cleanup()

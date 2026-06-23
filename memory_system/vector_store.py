@@ -153,12 +153,33 @@ class ChromaVectorStore:
             name=collection_name, metadata={"hnsw:space": "cosine"}
         )
 
-    def upsert(self, memory_type: str, memory_id: str, text: str, embedding: list[float], updated_at: str) -> None:
+    def upsert(
+        self,
+        memory_type: str,
+        memory_id: str,
+        text: str,
+        embedding: list[float],
+        updated_at: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        vector_metadata: dict[str, Any] = {
+            "memory_type": memory_type,
+            "memory_id": memory_id,
+            "updated_at": updated_at,
+        }
+        for key, value in (metadata or {}).items():
+            if value is None:
+                continue
+            vector_metadata[key] = (
+                json.dumps(value, ensure_ascii=False)
+                if isinstance(value, (list, dict))
+                else value
+            )
         self.collection.upsert(
             ids=[f"{memory_type}:{memory_id}"],
             documents=[text],
             embeddings=[embedding],
-            metadatas=[{"memory_type": memory_type, "memory_id": memory_id, "updated_at": updated_at}],
+            metadatas=[vector_metadata],
         )
 
     def query(self, query_embedding: list[float], memory_type: str = "qa", top_k: int = 20) -> list[dict[str, Any]]:

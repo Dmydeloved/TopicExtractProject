@@ -24,13 +24,13 @@ class TemplateSummarizer:
 
     def summarize_experience(
         self, experience: dict[str, Any], segments: list[dict[str, Any]]
-    ) -> dict[str, str]:
+    ) -> str:
         intents = ", ".join(experience.get("intents_link") or [])
         latest_summary = segments[-1]["summary"] if segments and segments[-1].get("summary") else ""
-        short = f"用户持续围绕 {experience['topic']} / {experience['core_entity']} 进行交互。"
-        long = (
+        summary = f"用户持续围绕 {experience['topic']} / {experience['core_entity']} 进行交互。"
+        summary += (
             f"该 Experience 当前累计 {len(segments)} 个 Segment，"
             f"涉及意图：{intents or '无'}。"
             f"{'最近片段：' + latest_summary if latest_summary else ''}"
         )
-        return {"short": short, "long": long}
+        return summary

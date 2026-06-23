@@ -5,7 +5,12 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from .embedder import TextEmbedder, topic_entity_text
+from .embedder import (
+    TextEmbedder,
+    build_experience_embedding_text,
+    build_qa_embedding_text,
+    build_segment_embedding_text,
+)
 from .storage import MemoryStorage
 from .summarizer import TemplateSummarizer
 from .vector_store import ChromaVectorStore
@@ -114,7 +119,7 @@ class MemoryManager:
                 "reasoning": reasoning,
             }
             self.storage.insert_qa(qa)
-            self._upsert_topic_entity_embedding("qa", qa["qa_id"], qa, timestamp)
+            self.upsert_qa_vector(qa["qa_id"])
             logger.info(
                 "QA 已创建 qa_id=%s segment_id=%s experience_id=%s",
                 qa["qa_id"],
@@ -126,10 +131,12 @@ class MemoryManager:
             current_segment["updated_at"] = timestamp
             self._maybe_summarize_segment_by_threshold(current_segment, timestamp)
             self.storage.update_segment(current_segment)
+            self.upsert_segment_vector(current_segment["segment_id"])
 
             self._attach_segment_to_experience(current_experience, current_segment, intent, timestamp)
             self._maybe_summarize_experience_by_threshold(current_experience, timestamp)
             self.storage.update_experience(current_experience)
+            self.upsert_experience_vector(current_experience["experience_id"])
             self.storage.upsert_runtime_state(
                 state_key=state_key,
                 current_experience_id=current_experience["experience_id"],
@@ -155,7 +162,7 @@ class MemoryManager:
             "core_entity": core_entity,
             "intents_link": [],
             "segment_ids": [],
-            "summary": {"short": "", "long": ""},
+            "summary": "",
             "state": {"status": "in_progress", "current_segment_id": ""},
             "created_at": now,
             "updated_at": now,
@@ -163,9 +170,7 @@ class MemoryManager:
             "last_summarized_segment_count": 0,
         }
         self.storage.insert_experience(experience)
-        self._upsert_topic_entity_embedding(
-            "experience", experience["experience_id"], experience, now
-        )
+        self.upsert_experience_vector(experience["experience_id"])
         logger.info("新建 Experience experience_id=%s topic=%s entity=%s", experience["experience_id"], topic, core_entity)
         return experience
 
@@ -192,7 +197,7 @@ class MemoryManager:
             "last_summarized_qa_count": 0,
         }
         self.storage.insert_segment(segment)
-        self._upsert_topic_entity_embedding("segment", segment["segment_id"], segment, now)
+        self.upsert_segment_vector(segment["segment_id"])
         logger.info(
             "新建 Segment segment_id=%s experience_id=%s intent=%s",
             segment["segment_id"],
@@ -241,7 +246,7 @@ class MemoryManager:
         segment["version"] += 1
         segment["updated_at"] = now
         self.storage.update_segment(segment)
-        self._upsert_topic_entity_embedding("segment", segment["segment_id"], segment, now)
+        self.upsert_segment_vector(segment["segment_id"])
         logger.info(
             "Segment 总结已更新 segment_id=%s reason=%s qa_count=%s version=%s",
             segment["segment_id"],
@@ -261,9 +266,7 @@ class MemoryManager:
         experience["version"] += 1
         experience["updated_at"] = now
         self.storage.update_experience(experience)
-        self._upsert_topic_entity_embedding(
-            "experience", experience["experience_id"], experience, now
-        )
+        self.upsert_experience_vector(experience["experience_id"])
         logger.info(
             "Experience 总结已更新 experience_id=%s reason=%s segment_count=%s version=%s",
             experience["experience_id"],
@@ -275,33 +278,85 @@ class MemoryManager:
     def _get_qa(self, qa_id: str) -> dict[str, Any] | None:
         return self.storage.get_qa(qa_id)
 
-    def _upsert_topic_entity_embedding(
-        self,
-        memory_type: str,
-        memory_id: str,
-        memory: dict[str, Any],
-        now: str,
-    ) -> None:
-        """Store the topic/core_entity vector whenever memory is created or updated."""
-
-        text = topic_entity_text(
-            memory.get("topic", ""),
-            memory.get("core_entity", ""),
-            memory.get("entities") or memory.get("intent"),
-        )
+    def upsert_experience_vector(self, experience_id: str) -> None:
+        experience = self.storage.get_experience(experience_id)
+        if not experience:
+            raise ValueError(f"Unknown experience_id: {experience_id}")
+        recent_segments = self.storage.list_segments_by_experience_ids([experience_id])[:3]
+        vector_memory = {**experience, "recent_segments": recent_segments}
+        text = build_experience_embedding_text(vector_memory)
         self.vector_store.upsert(
-            memory_type=memory_type,
-            memory_id=memory_id,
+            memory_type="experience",
+            memory_id=experience_id,
             text=text,
             embedding=self.embedder.embed(text),
-            updated_at=now,
+            updated_at=experience["updated_at"],
+            metadata={
+                "experience_id": experience_id,
+                "topic": experience["topic"],
+                "core_entity": experience["core_entity"],
+                "intents": experience.get("intents_link") or [],
+                "version": experience["version"],
+            },
         )
-        logger.debug(
-            "向量已写入 type=%s id=%s text=%s",
-            memory_type,
-            memory_id,
-            text,
+        logger.debug("Experience 向量已写入 id=%s", experience_id)
+
+    def upsert_segment_vector(self, segment_id: str) -> None:
+        segment = self.storage.get_segment(segment_id)
+        if not segment:
+            raise ValueError(f"Unknown segment_id: {segment_id}")
+        recent_qas = [
+            self.storage.get_qa(qa_id)
+            for qa_id in (segment.get("qa_ids") or [])[-3:]
+        ]
+        vector_memory = {
+            **segment,
+            "recent_qa_inputs": [
+                qa["user_input"] for qa in recent_qas if qa
+            ],
+        }
+        text = build_segment_embedding_text(vector_memory)
+        self.vector_store.upsert(
+            memory_type="segment",
+            memory_id=segment_id,
+            text=text,
+            embedding=self.embedder.embed(text),
+            updated_at=segment["updated_at"],
+            metadata={
+                "segment_id": segment_id,
+                "experience_id": segment["experience_id"],
+                "topic": segment["topic"],
+                "core_entity": segment["core_entity"],
+                "intent": segment["intent"],
+                "status": segment["status"],
+                "version": segment["version"],
+            },
         )
+        logger.debug("Segment 向量已写入 id=%s", segment_id)
+
+    def upsert_qa_vector(self, qa_id: str) -> None:
+        qa = self.storage.get_qa(qa_id)
+        if not qa:
+            raise ValueError(f"Unknown qa_id: {qa_id}")
+        text = build_qa_embedding_text(qa)
+        self.vector_store.upsert(
+            memory_type="qa",
+            memory_id=qa_id,
+            text=text,
+            embedding=self.embedder.embed(text),
+            updated_at=qa["timestamp"],
+            metadata={
+                "qa_id": qa_id,
+                "segment_id": qa["segment_id"],
+                "topic": qa["topic"],
+                "core_entity": qa["core_entity"],
+                "intent": qa["intent"],
+                "timestamp": qa["timestamp"],
+                "status": qa["status"],
+                "confidence": float(qa["confidence"]),
+            },
+        )
+        logger.debug("QA 向量已写入 id=%s", qa_id)
 
     def _same_experience(
         self, experience: dict[str, Any] | None, topic: str, core_entity: str
