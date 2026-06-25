@@ -21,7 +21,7 @@ def main() -> int:
     query_text = "我想找一家位于市中心、价格偏高的餐厅，可以告诉我推荐餐厅的电话号码吗？"
 
     try:
-        embedder = BailianEmbedder()
+        embedder = BailianEmbedder(api_key='sk-29434e233c3e437281144cd9e2a1f04f')
     except ValueError as error:
         print(f"初始化 BailianEmbedder 失败: {error}")
         return 1

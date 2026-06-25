@@ -109,28 +109,11 @@ class MemoryStorage:
         self.connection.row_factory = sqlite3.Row
         self.connection.execute("PRAGMA foreign_keys = ON")
         self.connection.executescript(SCHEMA)
-        self._experience_summary_column = self._detect_experience_summary_column()
         self.connection.commit()
         logger.info("结构化记忆库已初始化 db=%s", self.db_path.resolve())
 
     def close(self) -> None:
         self.connection.close()
-
-    def _detect_experience_summary_column(self) -> str:
-        columns = {
-            str(row['name'])
-            for row in self.connection.execute('PRAGMA table_info(experience_memory)')
-        }
-        if 'summary_json' in columns:
-            return 'summary_json'
-        if 'summary' in columns:
-            return 'summary'
-        raise RuntimeError('experience_memory requires summary_json (or legacy summary)')
-
-    def _encode_experience_summary(self, value: Any) -> str:
-        if self._experience_summary_column == 'summary_json':
-            return json.dumps(str(value or ''), ensure_ascii=False)
-        return str(value or '')
 
     def commit(self) -> None:
         self.connection.commit()
@@ -364,10 +347,10 @@ class MemoryStorage:
 
     def insert_experience(self, experience: dict[str, Any]) -> None:
         self.connection.execute(
-            f"""
+            """
             INSERT INTO experience_memory (
                 experience_id, topic, core_entity, intents_link_json,
-                segment_ids_json, {self._experience_summary_column}, state_json, created_at,
+                segment_ids_json, summary_json, state_json, created_at,
                 updated_at, version, last_summarized_segment_count
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
@@ -377,7 +360,7 @@ class MemoryStorage:
                 experience["core_entity"],
                 json.dumps(experience["intents_link"], ensure_ascii=False),
                 json.dumps(experience["segment_ids"], ensure_ascii=False),
-                self._encode_experience_summary(experience["summary"]),
+                json.dumps(experience["summary"], ensure_ascii=False),
                 json.dumps(experience["state"], ensure_ascii=False),
                 experience["created_at"],
                 experience["updated_at"],
@@ -388,11 +371,11 @@ class MemoryStorage:
 
     def update_experience(self, experience: dict[str, Any]) -> None:
         self.connection.execute(
-            f"""
+            """
             UPDATE experience_memory SET
                 intents_link_json = ?,
                 segment_ids_json = ?,
-                {self._experience_summary_column} = ?,
+                summary_json = ?,
                 state_json = ?,
                 updated_at = ?,
                 version = ?,
@@ -402,7 +385,7 @@ class MemoryStorage:
             (
                 json.dumps(experience["intents_link"], ensure_ascii=False),
                 json.dumps(experience["segment_ids"], ensure_ascii=False),
-                self._encode_experience_summary(experience["summary"]),
+                json.dumps(experience["summary"], ensure_ascii=False),
                 json.dumps(experience["state"], ensure_ascii=False),
                 experience["updated_at"],
                 experience["version"],
@@ -410,10 +393,6 @@ class MemoryStorage:
                 experience["experience_id"],
             ),
         )
-
-    def list_qas(self) -> list[dict[str, Any]]:
-        rows = self.connection.execute("SELECT * FROM qa_memory").fetchall()
-        return [self._row_to_dict(row) for row in rows]
 
     def list_segments_by_experience_ids(
         self, experience_ids: list[str]
@@ -443,20 +422,6 @@ class MemoryStorage:
             WHERE segment_id IN ({placeholders}) AND status = 'active'
             """,
             segment_ids,
-        ).fetchall()
-        return [self._row_to_dict(row) for row in rows]
-
-    def list_active_qas_by_topic_entity(
-        self, topic: str, core_entity: str, limit: int
-    ) -> list[dict[str, Any]]:
-        rows = self.connection.execute(
-            """
-            SELECT * FROM qa_memory
-            WHERE topic = ? AND core_entity = ? AND status = 'active'
-            ORDER BY timestamp DESC
-            LIMIT ?
-            """,
-            (topic, core_entity, limit),
         ).fetchall()
         return [self._row_to_dict(row) for row in rows]
 

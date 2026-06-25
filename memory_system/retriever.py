@@ -70,7 +70,7 @@ def recency_score(value: str | None, half_life_days: float = 180.0) -> float:
         return 0.5
 
 
-def parse_summary_json(value: Any) -> str:
+def parse_summary(value: Any) -> str:
     if isinstance(value, str):
         stripped = value.strip()
         if not stripped:
@@ -110,17 +110,17 @@ def _core_entity_score(query: str, candidate: str) -> float:
     return 0.5 if jaccard_score(tokenize(query), tokenize(candidate)) > 0 else 0.0
 
 
-def parse_state_json(value: Any) -> dict[str, Any]:
+def parse_state(value: Any) -> dict[str, Any]:
     parsed = safe_json_loads(value, {})
     return parsed if isinstance(parsed, dict) else {}
 
 
-def parse_intents_json(value: Any) -> list[str]:
+def parse_intents(value: Any) -> list[str]:
     parsed = safe_json_loads(value, [])
     return [str(item) for item in parsed if str(item).strip()] if isinstance(parsed, list) else []
 
 
-def parse_entities_json(value: Any) -> list[str]:
+def parse_entities(value: Any) -> list[str]:
     parsed = safe_json_loads(value, [])
     return [str(item) for item in parsed if str(item).strip()] if isinstance(parsed, list) else []
 
@@ -303,9 +303,9 @@ class HybridRetriever:
 
         scored: list[dict[str, Any]] = []
         for item in candidates:
-            intents = parse_intents_json(item.get("intents_link", item.get("intents_link_json")))
-            summary = parse_summary_json(item.get("summary", item.get("summary_json")))
-            state = parse_state_json(item.get("state", item.get("state_json")))
+            intents = parse_intents(item.get("intents_link"))
+            summary = parse_summary(item.get("summary"))
+            state = parse_state(item.get("state"))
             topic_value = 1.0 if item.get("topic") == topic else 0.0
             core_value = _core_entity_score(core_entity, item.get("core_entity", ""))
             intent_value = 1.0 if intent and intent in intents else 0.0
@@ -397,7 +397,7 @@ class HybridRetriever:
         candidates = self.storage.list_qas_by_segment_ids(segment_ids)
         scored: list[dict[str, Any]] = []
         for item in candidates:
-            qa_entities = parse_entities_json(item.get("entities", item.get("entities_json")))
+            qa_entities = parse_entities(item.get("entities"))
             memory_text = " ".join([
                 str(item.get("topic") or ""),
                 str(item.get("core_entity") or ""),

@@ -90,7 +90,7 @@ def main() -> int:
     manager = MemoryManager(
         storage,
         vector_store=ChromaVectorStore(args.chroma_path),
-        embedder=BailianEmbedder(),
+        embedder=BailianEmbedder(api_key='sk-29434e233c3e437281144cd9e2a1f04f'),
     )
     imported = 0
     try:
