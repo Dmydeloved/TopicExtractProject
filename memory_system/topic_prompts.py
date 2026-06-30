@@ -1,5 +1,132 @@
 from __future__ import annotations
 
+import json
+
+
+def _retrieval_prompt(
+    *,
+    layer_name: str,
+    query_text: str,
+    candidates: list[dict],
+    limit: int,
+    criteria: str,
+) -> str:
+    candidates_json = json.dumps(candidates, ensure_ascii=False, indent=2)
+    return f"""# Role
+
+You are the retrieval filter for a hierarchical long-term memory system.
+
+Memory hierarchy:
+
+```text
+Experience
+    -> Segment
+        -> QA
+```
+
+Your task is to select the most relevant candidates in the {layer_name} layer and assign each selected candidate a relevance score from 0.0 to 1.0.
+
+---
+
+# Query
+
+{query_text}
+
+---
+
+# Candidates
+
+{candidates_json}
+
+---
+
+# Selection Criteria
+
+{criteria}
+
+---
+
+# Output Format Strict JSON
+
+Return only a JSON array. Do not return Markdown or extra explanation.
+
+Sort items from most relevant to least relevant. Return at most {limit} items.
+
+Each array item must use this shape:
+
+```json
+[
+  {{
+    "id": "candidate id",
+    "score": 0.0,
+    "reason": "brief reason"
+  }}
+]
+```
+
+---
+
+# Output Constraints
+
+* Select only ids that exist in the candidates.
+* score must be a number from 0.0 to 1.0.
+* Keep only candidates that are useful for the current query.
+* If candidates are similarly relevant, prefer the one that is more specific, more recent, and better aligned with the query intent.
+* Do not invent information that is not present in the candidates.
+"""
+
+
+def experience_retrieval_prompt(
+    query_text: str,
+    candidates: list[dict],
+    limit: int,
+) -> str:
+    return _retrieval_prompt(
+        layer_name="Experience",
+        query_text=query_text,
+        candidates=candidates,
+        limit=limit,
+        criteria="""* Decide whether topic belongs to the same long-term discussion domain.
+* Decide whether core_entity is the same object or an acceptable alias.
+* Decide whether intents cover the current user intent.
+* Use summary and state as additional relevance evidence.
+* vector_recalled means the candidate also appeared in vector retrieval; it is only a recall hint, not a relevance score.""",
+    )
+
+
+def segment_retrieval_prompt(
+    query_text: str,
+    candidates: list[dict],
+    limit: int,
+) -> str:
+    return _retrieval_prompt(
+        layer_name="Segment",
+        query_text=query_text,
+        candidates=candidates,
+        limit=limit,
+        criteria="""* Decide whether the segment intent matches the query intent.
+* Decide whether summary contains information that should be continued or reused.
+* topic and core_entity should remain consistent with the selected Experience layer.
+* vector_recalled means the candidate also appeared in vector retrieval; it is only a recall hint, not a relevance score.""",
+    )
+
+
+def qa_retrieval_prompt(
+    query_text: str,
+    candidates: list[dict],
+    limit: int,
+) -> str:
+    return _retrieval_prompt(
+        layer_name="QA",
+        query_text=query_text,
+        candidates=candidates,
+        limit=limit,
+        criteria="""* Decide whether user_input and assistant_output can directly help answer the current query.
+* Decide whether intent, entities, topic, and core_entity match the current query.
+* Prefer QA records that are complete, traceable, and higher confidence.
+* vector_recalled means the candidate also appeared in vector retrieval; confidence and timestamp are context only, not relevance scores.""",
+    )
+
 
 def common_extractor_prompt(
     user_input: str,

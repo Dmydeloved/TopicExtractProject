@@ -2,7 +2,7 @@
 
 from .embedder import BailianEmbedder
 from .manager import MemoryManager
-from .retriever import HybridRetriever, StructuredRetriever
+from .retriever import HybridRetriever, LLMRetrievalReranker, StructuredRetriever
 from .storage import MemoryStorage
 from .topic_extractor import (
     BailianTopicExtractor,
@@ -20,6 +20,7 @@ __all__ = [
     "BailianTopicExtractor",
     "ChromaVectorStore",
     "HybridRetriever",
+    "LLMRetrievalReranker",
     "MemoryManager",
     "MemoryStorage",
     "StructuredRetriever",

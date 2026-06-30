@@ -32,6 +32,9 @@ def main() -> int:
             storage=storage,
             vector_store=ChromaVectorStore(persist_path=CHROMA_DIR),
             embedder=embedder,
+            retrieval_model= 'gpt-5.5',
+            retrieval_base_url= 'https://api.gpt.ge/v1/',
+            retrieval_api_key='sk-RFUNAF0b6zfJWCVz9dA1Aa244aEa43Dc974693370b8d4338'
         )
         result = retriever.recall(
             topic="餐厅推荐",

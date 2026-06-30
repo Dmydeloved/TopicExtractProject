@@ -17,6 +17,31 @@ def topic(topic_name="餐厅推荐", entity="餐厅", intent="查询"):
     }
 
 
+class FakeRetrievalReranker:
+    def rerank(self, layer, query_text, candidates, limit):
+        intent = ""
+        marker = "\u7528\u6237\u610f\u56fe\uff1a"
+        for line in query_text.splitlines():
+            if line.startswith(marker):
+                intent = line[len(marker):].strip()
+                break
+
+        selected = candidates
+        if intent and layer in {"segment", "qa"}:
+            matched = [item for item in candidates if item.get("intent") == intent]
+            if matched:
+                selected = matched
+
+        return [
+            {
+                "id": item["id"],
+                "score": max(0.1, 1.0 - index * 0.01),
+                "reason": "fake llm selection",
+            }
+            for index, item in enumerate(selected[:limit])
+        ]
+
+
 class MemorySystemTests(unittest.TestCase):
     def make_manager(self):
         directory = tempfile.TemporaryDirectory()
@@ -60,7 +85,10 @@ class MemorySystemTests(unittest.TestCase):
             )
 
             result = HybridRetriever(
-                storage, manager.vector_store, manager.embedder
+                storage,
+                manager.vector_store,
+                manager.embedder,
+                reranker=FakeRetrievalReranker(),
             ).recall("餐厅推荐", "餐厅", top_k=2)
             qas = [item["qa"] for item in result["results"]]
             self.assertEqual(2, len(qas))
@@ -99,7 +127,10 @@ class MemorySystemTests(unittest.TestCase):
             manager.add_qa(topic(intent="预订"), "预订餐厅座位")
 
             result = HybridRetriever(
-                storage, manager.vector_store, manager.embedder
+                storage,
+                manager.vector_store,
+                manager.embedder,
+                reranker=FakeRetrievalReranker(),
             ).recall(
                 "餐厅推荐",
                 "餐厅",
